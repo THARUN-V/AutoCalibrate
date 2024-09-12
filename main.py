@@ -10,15 +10,26 @@ class AutoCalibrate(ParseParams,CamContext,CameraCapture):
     def __init__(self):
         
         ParseParams.__init__(self)
+        CamContext.__init__(self)
+        CameraCapture.__init__(self)
         
         # check if all the required params are provided from cli
         # else print the appropriate log and exit.
         if not self.check_params():
             exit()    
+            
+        # scan the camera and get camera serial numbers
+        self.see_cams = self.get_seecam()
+        # check if the scanned and provided number of cameras match
+        if len(self.see_cams) != self.args.n_cam:
+            self.logger.error(f"Found {len(self.see_cams)} cameras out of {self.args.n_cam}")
+            exit()
+        
         
     def run_calibration(self):
-        print(self.args.json_path)
-        print(self.args.n_cam)
+        # print(self.args.json_path)
+        # print(self.args.n_cam)
+        pass
 
 if __name__ == "__main__":
     
