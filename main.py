@@ -5,13 +5,12 @@ import json
 import logging
 
 
-class AutoCalibrate(ParseParams,CamContext,CameraCapture):
+class AutoCalibrate(ParseParams,CamContext):
     
     def __init__(self):
         
         ParseParams.__init__(self)
         CamContext.__init__(self)
-        CameraCapture.__init__(self)
         
         # check if all the required params are provided from cli
         # else print the appropriate log and exit.
@@ -20,16 +19,25 @@ class AutoCalibrate(ParseParams,CamContext,CameraCapture):
             
         # scan the camera and get camera serial numbers
         self.see_cams = self.get_seecam()
+        
         # check if the scanned and provided number of cameras match
         if len(self.see_cams) != self.args.n_cam:
             self.logger.error(f"Found {len(self.see_cams)} cameras out of {self.args.n_cam}")
             exit()
+            
+        # initialize camera capture class with the number of detected cameras
+        self.cam = [CameraCapture(camera_index = see_cam.camera_index,
+                                  queue_size = 1,
+                                  resolution = self.args.resolution,
+                                  serial_num = see_cam.serial_number) 
+                    for see_cam in self.see_cams]
         
-        
+        # start all the camera threads
+        for cam_obj in self.cam: cam_obj.start()
+    
     def run_calibration(self):
-        # print(self.args.json_path)
-        # print(self.args.n_cam)
-        pass
+        while True:
+            pass
 
 if __name__ == "__main__":
     
@@ -56,4 +64,10 @@ if __name__ == "__main__":
     #     print("=========================================")
     
     auto_calib = AutoCalibrate()
-    auto_calib.run_calibration()
+    try:
+        auto_calib.run_calibration()
+    except KeyboardInterrupt:
+        # close the camera threads
+        for cam_obj in auto_calib.cam: cam_obj.stop()
+        print("------ exiting ----------")
+    
