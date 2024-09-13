@@ -2,10 +2,12 @@ from ParseParams import *
 from CamContext import CamContext
 from CamCapture import CameraCapture
 from MarkerDetector import ArucoMarkerDetector
+from CamWriter import CameraWriter
 import json
 import logging
 import cv2
-
+from datetime import datetime
+import os
 
 class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
     
@@ -38,6 +40,17 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
             "RightCam":None,
             "LeftCam":None
         }
+        
+        # path for video file to store
+        
+        # count to skip frames that is of green color
+        self.skip_frame_count = 3
+        # count to keep track of frames being written
+        self.current_frame_count = 0
+        # directory to store video and log files
+        self.data_dir = os.path.join(os.getcwd(),datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+        # create directory to writer log and video 
+        os.mkdir(self.data_dir)
             
     def detect_and_map_cam_ids(self):
         """
@@ -60,6 +73,8 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         for cam in self.see_cams:
             # get the current cam index , fetch frame and detect marker
             cap = cv2.VideoCapture(cam.camera_index)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH,self.w)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT,self.h)
             
             # flag to check if id is detected for current cam
             id_detected = False
@@ -99,6 +114,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
     
     def run_calibration(self):
         
+        ############################### Camera Id Mapping ####################################################
         self.logger.info("========= Performing Camera Id Mapping =========")
         self.detect_and_map_cam_ids()
         self.logger.info("=========    Done Camera Id Mapping    =========")
@@ -109,6 +125,29 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         with open(self.args.json_path,"w") as updated_json:
             json.dump(self.current_json,updated_json,indent = 4)
         self.logger.info("Updated mapped Camera Id's in Json")
+        ############################### End of Camera Id Mapping ##############################################
+        
+        ############################## Record video of Front,Left and Right for debug and estimating offsets ###################
+        # initialize cam writer object
+        out = CameraWriter(self.data_dir,self.w,self.h)
+        for cam_name , cam_index in self.cam_name_and_index.items():
+            cap = cv2.VideoCapture(cam_index)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH,self.w)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT,self.h)
+            self.logger.info(f"Recording Video of {cam_name}")
+            while self.current_frame_count <= self.args.record_frame_count:
+                ret , frame = cap.read()
+                if ret:
+                    if self.current_frame_count > self.skip_frame_count:
+                        out.write_image(cam_name,frame)
+                    self.current_frame_count += 1
+            self.current_frame_count = 0
+                    
+        # release the video writer objects
+        out.clear_writer()
+        ###########################  End Record video of Front,Left and Right for debug and estimating offsets ###################
+        
+        
             
         
 
