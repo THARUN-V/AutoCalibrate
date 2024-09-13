@@ -30,6 +30,11 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         # scan the camera and get camera serial numbers
         self.see_cams = self.get_seecam()
         
+        # if no cameras found exit with error message
+        if self.see_cams == None:
+            self.logger.error("!!! No Cameras Found !!!")
+            exit()
+        
         # check if the scanned and provided number of cameras match
         if len(self.see_cams) != self.args.n_cam:
             self.logger.error(f"Found {len(self.see_cams)} cameras out of {self.args.n_cam}")
@@ -147,6 +152,31 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         out.clear_writer()
         ###########################  End Record video of Front,Left and Right for debug and estimating offsets ###################
         
+        ########################### side camera offset estimation ######################################################
+        
+        ### for side camera estimation set the current side camera offsets to zero in current json file ###
+        self.logger.info(f"Setting leftSideCameraOffset and rightSideCameraOffset to 0")
+        self.current_json["CamParams"][0]["leftSideCameraOffset"] = 0
+        self.current_json["CamParams"][0]["rightSideCameraOffset"] = 0
+        with open(self.args.json_path,"w") as updated_json:
+            json.dump(self.current_json,updated_json,indent = 4)
+        self.logger.info(f"Overwritten leftSideCameraOffset : 0 and rightSideCameraOffset : 0")
+        ### end of setting side camera offsets to zero in current json file ###
+        
+        ### run the existing videoplayback build with video/picture mode to estimate ratio with sidecamera offsets set to zroe ###
+        # check if the video file exists #
+        if len(os.listdir(self.data_dir)) < self.args.n_cam:
+            self.logger.error(f"Only {len(os.listdir(self.data_dir))} exists out of {self.args.n_cam}")
+        
+        # command to run videoplayback build
+        # cmd = f"{}"
+        
+        # iterater over the video file generate log 
+        for video_file in os.listdir(self.data_dir):
+            if ".mp4" in video_file:
+                if "Right" in video_file:
+                    print(os.path.join(self.data_dir,video_file))
+        ### End of run the existing videoplayback build with video/picture mode to estimate ratio with sidecamera offsets set to zroe ###
         
             
         

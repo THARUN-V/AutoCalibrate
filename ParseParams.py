@@ -21,6 +21,7 @@ class ParseParams:
         parser.add_argument("--right_cam_marker_id",type = int , default = 1 , help = "marker id for right camra. (default : 1)")
         parser.add_argument("--left_cam_marker_id",type = int , default = 2, help = "marker id for left camera. (default : 2)")
         parser.add_argument("--record_frame_count",type = int,default = 100,help = "number of frames to record as video")
+        parser.add_argument("--videoplayback_build",type=str,default = None,help = "path to VideoPlayback build")
         
         self.args = parser.parse_args()
         
@@ -42,6 +43,9 @@ class ParseParams:
         
         if self.args.json_path == None:
             self.logger.error("No Json File provided")
+            return False
+        if self.args.videoplayback_build == None:
+            self.logger.error("path to VideoPlayback build is not provided")
             return False
         
         return True
