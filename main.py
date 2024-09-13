@@ -168,15 +168,31 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         if len(os.listdir(self.data_dir)) < self.args.n_cam:
             self.logger.error(f"Only {len(os.listdir(self.data_dir))} exists out of {self.args.n_cam}")
         
-        # command to run videoplayback build
-        # cmd = f"{}"
+        self.logger.info(f"Executing VideoPlayback build with lefSideCameraOffset : {self.current_json['CamParams'][0]['leftSideCameraOffset']} , rightCameraOffset : {self.current_json['CamParams'][0]['rightSideCameraOffset']}")
         
         # iterater over the video file generate log 
         for video_file in os.listdir(self.data_dir):
             if ".mp4" in video_file:
-                if "Right" in video_file:
-                    print(os.path.join(self.data_dir,video_file))
-        ### End of run the existing videoplayback build with video/picture mode to estimate ratio with sidecamera offsets set to zroe ###
+                if "Right" in video_file or "Left" in video_file:
+                    # print(os.path.join(self.data_dir,video_file))
+                    # command to run videoplayback build
+                    log_file = os.path.join(self.data_dir,video_file.split(".mp4")[0]+"Log.txt")
+                    cmd = f"{self.args.videoplayback_build} -i /home/tharun/THARUN/Data/TestVideos/TKAP_ORANGE_LANES/Left_Camera_Orange_Video_8_161223.mp4 -v > {log_file} 2>&1"
+                    
+                    # run the command
+                    process = os.system(cmd)
+                    
+                    # check if the process has executed and terminated successfully
+                    if process == 0:
+                        self.logger.info(f"Done with {os.path.join(self.data_dir,video_file)}")
+        
+        # get the log file for right cam and left cam
+        for log_file in os.listdir(self.data_dir):
+            log_file = os.path.join(self.data_dir,log_file)
+            if ".txt" in log_file:
+                print(log_file)
+        
+        ### End of, run the existing videoplayback build with video/picture mode to estimate ratio with sidecamera offsets set to zroe ###
         
             
         
