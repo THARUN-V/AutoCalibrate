@@ -4,7 +4,7 @@ import logging
 class ParseParams:
     
     def __init__(self):
-        
+                
         logging.basicConfig(format="[%(asctime)s, %(levelname)s] %(message)s", level=logging.INFO, datefmt="%d/%m/%y %H:%M:%S")
         self.logger = logging.getLogger()
         
@@ -22,6 +22,16 @@ class ParseParams:
         parser.add_argument("--left_cam_marker_id",type = int , default = 2, help = "marker id for left camera. (default : 2)")
         
         self.args = parser.parse_args()
+        
+        # resolution of camera #
+        self.cam_res_dict = {
+            0 : (640,480),
+            1 : (960,540),
+            2 : (1280,720),
+            3 : (1280,960),
+            4 : (1920,1080)
+        }
+        self.w , self.h = self.cam_res_dict[self.args.resolution]
         
         
     def check_params(self):
