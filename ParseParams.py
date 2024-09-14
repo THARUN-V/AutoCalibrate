@@ -23,6 +23,12 @@ class ParseParams:
         parser.add_argument("--record_frame_count",type = int,default = 100,help = "number of frames to record as video")
         parser.add_argument("--videoplayback_build",type=str,default = None,help = "path to VideoPlayback build")
         
+        #### threshold params for ratio and csa ####
+        parser.add_argument("--ratio_without_side_cam_offset_min",type = float,default = 0.47,help = "min ratio to accept without side camera offset")
+        parser.add_argument("--ratio_without_side_cam_offset_max",type = float,default = 0.53,help = "max ratio to accept without side camera offset")
+        parser.add_argument("--target_ratio",type = float,default = 0.50,help = "target ratio to substiute in equation of side camera offsets")
+        parser.add_argument("--lane_width",type = float,default = None,help = "lanewidth of the gangway")
+        
         self.args = parser.parse_args()
         
         # resolution of camera #
@@ -46,6 +52,9 @@ class ParseParams:
             return False
         if self.args.videoplayback_build == None:
             self.logger.error("path to VideoPlayback build is not provided")
+            return False
+        if self.args.lane_width == None:
+            self.logger.error("land_width not provided , please provide the lane_width param by --lane_width <lane_width>")
             return False
         
         return True
