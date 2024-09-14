@@ -209,10 +209,8 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         self.logger.info("**** This Script overwrites the current json file for updating params , Take backup of current json file before proceeding .. ****")
         choice = input(f"{self.get_formatted_timestamp()} Enter y,to proceed , n to exit : ")
         
-        if choice == "n":
-            exit()
-        if choice == "y":
-            pass
+        if choice == "n": exit()
+        if choice == "y": pass
         ####### End of, Prompt the user regarding overwritting of current json file and instruct the user to take backup of current json file ###########
         
         ######### Instruct the user to place the markers before proceeding for camera id mapping ##########
@@ -222,10 +220,8 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         
         choice = input(f"{self.get_formatted_timestamp()} Enter y when markers are placed in front of camera's , n to exit : ")
         
-        if choice == "y":
-            pass
-        if choice == "n":
-            exit()
+        if choice == "y": pass
+        if choice == "n": exit()
         ##### End of, Instruct the user to place the markers before proceeding for camera id mapping ######
         
         ############################### Camera Id Mapping ####################################################
@@ -240,6 +236,14 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
             json.dump(self.current_json,updated_json,indent = 4)
         self.logger.info("Updated mapped Camera Id's in Json")
         ############################### End of Camera Id Mapping ##############################################
+        
+        ####### Instruct the user to remove markers before recording video for offset estimation ######
+        self.logger.info("*** Remove the Markers Before Recording Video for offset estimation ***")
+        choice = input(f"{self.get_formatted_timestamp()} Enter y when markers are removed , n to exit : ")
+        
+        if choice == "y": pass
+        if choice == "n": exit()
+        #### End of Instruct the user to remove markers before recording video for offset estimation ##
         
         ############################## Record video of Front,Left and Right for debug and estimating offsets ###################
         # initialize cam writer object
