@@ -142,9 +142,9 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         
         return ratio_mean , csa_mean
     
-    def estimate_offset(self,measured_ratio,cam_name = None):
+    def estimate_offset(self,measured_ratio,measured_steering_angle,cam_name = None):
         """
-        Function to estimate side camera offset using equation.
+        Function to estimate side camera offset using equation and offset in steering angle.
         """
         
         if cam_name == None:
@@ -152,31 +152,43 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
             exit()
         
         if cam_name == "right":
-            return int(self.args.lane_width * (self.args.target_ratio - measured_ratio))
+            return int(self.args.lane_width * (self.args.target_ratio - measured_ratio)) , int(self.args.target_steering_angle - measured_steering_angle)
         
         if cam_name == "left":
-            return int(self.args.lane_width * (1 - measured_ratio - self.args.target_ratio))
+            return int(self.args.lane_width * (1 - measured_ratio - self.args.target_ratio)) , int(self.args.target_steering_angle - measured_steering_angle)
         
-    def check_and_update_estimated_offset(self,estimated_ratio,cam_name = None):
+    def check_and_update_estimated_offset(self,estimated_ratio,estimated_csa,cam_name = None):
         """
         utility function to check whether the current estimated ratio without side cam offset lies in acceptable range
         and update the same in json file.
         """
         # check if the estimated ratio is between acceptable ratio that is calculated without applying offset
-        if estimated_ratio >= self.args.ratio_without_side_cam_offset_min and estimated_ratio <= self.args.ratio_without_side_cam_offset_max:
-            self.logger.info(f"Current {cam_name}_ratio is in acceptable range")
+        if estimated_ratio >= self.args.ratio_without_side_cam_offset_min and estimated_ratio <= self.args.ratio_without_side_cam_offset_max and \
+            estimated_csa >= self.args.csa_without_offset_min and estimated_csa <= self.args.csa_without_offset_max:
+                
+            self.logger.info(f"Current {cam_name}_ratio is in acceptable ratio")
+            self.logger.info(f"Current {cam_name}_current_steering_anlge is in acceptable steering angle")
+            
             # if the current measured ratio is in acceptable range, estimate the side camera offset using the equation by setting target ratio to 0.5
             self.logger.info(f"Estimating {cam_name}SideCameraOffset with measured_ratio : {estimated_ratio}")
-            Estimated_SideCameraOffset = self.estimate_offset(cam_name = cam_name,measured_ratio = estimated_ratio)
+            self.logger.info(f"Estimating {cam_name}SteeringOffset with measured steering angle : {estimated_csa}")
+            
+            Estimated_SideCameraOffset , Estimated_SideCameraSteeringOffset = self.estimate_offset(cam_name = cam_name,measured_ratio = estimated_ratio,measured_steering_angle = estimated_csa)
+            
             self.logger.info(f"Estimated {cam_name}SideCameraOffset : {Estimated_SideCameraOffset}")
+            self.logger.info(f"Estimated {cam_name}SteeringOffset : {Estimated_SideCameraSteeringOffset}")
+            
             # Overwrite right camera offset in json file
-            self.logger.info(f"Overwriting {cam_name}SideCameraOffset in Json file")
+            self.logger.info(f"Overwriting {cam_name}SideCameraOffset and {cam_name}SterringOffset in Json file")
+            
             with open(self.args.json_path,"w") as updated_json:
                 self.current_json["CamParams"][0][f"{cam_name}SideCameraOffset"] = Estimated_SideCameraOffset
+                self.current_json["CamParams"][0][f"{cam_name}SideSteeringOffset"] = Estimated_SideCameraSteeringOffset
                 json.dump(self.current_json,updated_json,indent = 4)
-            self.logger.info(f"Done , Overwriting of {cam_name}SideCameraOffset in Json file")
+            self.logger.info(f"Done , Overwriting of {cam_name}SideCameraOffset and {cam_name}SteeringOffset in Json file")
         else:
-            self.logger.error(f"Current {cam_name} Ratio : {estimated_ratio} does not lie in acceptable range.")
+            self.logger.error(f"Current {cam_name} Ratio : {estimated_ratio} does not lie in acceptable ratio.")
+            self.logger.error(f"Current {cam_name} Current Steering Angle : {estimated_csa} doe not lie in acceptable steering angle")
             self.logger.error(f"current position of BOT or CAMERA is not accepted")
             exit()
         
@@ -263,7 +275,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     
                     self.logger.info(f"right_ratio_mean : {right_estimated_ratio_mean} | right_csa_mean : {right_csa_mean}")
                 
-                    self.check_and_update_estimated_offset(cam_name = "right", estimated_ratio = right_estimated_ratio_mean)
+                    self.check_and_update_estimated_offset(cam_name = "right", estimated_ratio = right_estimated_ratio_mean , estimated_csa = right_csa_mean)
                         
                 # get the left cam log file
                 if "Left" in log_file:
@@ -274,7 +286,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     
                     self.logger.info(f"left_ratio_mean : {left_estimated_ratio_mean} | left_csa_mean : {left_csa_mean}")
                     
-                    self.check_and_update_estimated_offset(cam_name = "left",estimated_ratio = left_estimated_ratio_mean)
+                    self.check_and_update_estimated_offset(cam_name = "left",estimated_ratio = left_estimated_ratio_mean , estimated_csa = left_csa_mean)
         
         ### End of, run the existing videoplayback build with video/picture mode to estimate ratio with sidecamera offsets set to zroe ###
         

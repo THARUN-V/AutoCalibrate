@@ -26,7 +26,10 @@ class ParseParams:
         #### threshold params for ratio and csa ####
         parser.add_argument("--ratio_without_side_cam_offset_min",type = float,default = 0.47,help = "min ratio to accept without side camera offset")
         parser.add_argument("--ratio_without_side_cam_offset_max",type = float,default = 0.53,help = "max ratio to accept without side camera offset")
+        parser.add_argument("--csa_without_offset_min",type = float,default = 87,help = "min current steering angle to accept without sterring angle offset")
+        parser.add_argument("--csa_without_offset_max",type = float,default = 93,help = "max current steering angle to accept without sterring angle offset")
         parser.add_argument("--target_ratio",type = float,default = 0.50,help = "target ratio to substiute in equation of side camera offsets")
+        parser.add_argument("--target_steering_angle",type = float,default=90.0,help = "targe steering angle")
         parser.add_argument("--lane_width",type = float,default = None,help = "lanewidth of the gangway")
         
         self.args = parser.parse_args()
