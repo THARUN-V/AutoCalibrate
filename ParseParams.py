@@ -10,27 +10,26 @@ class ParseParams:
         
         parser = argparse.ArgumentParser(description = "Script to automate the calibration.",formatter_class=argparse.RawTextHelpFormatter)
         
-        parser.add_argument("--json_path",default = None,help = "json file for path to json file for read,modify and updating the params (default : None)")
+        parser.add_argument("--json_path",default = None,help = "json file for path to json file for read,modify and updating the params. (default : None)")
         parser.add_argument("--n_cam",type = int ,default = 3,help = "number of cameras connected to bot (default : 3)")
         parser.add_argument("--resolution",type = int, default = 1 , help = "resoultion of image to get from camera. (default : 1) \n supported resolution \n 0 : (640,480) \n 1 : (960,540) \n 2 : (1280,720) \n 3 : (1280,960) \n 4 : (1920,1080)")
-        parser.add_argument("--cam_switch",type = int, default = 0 , help = "wheteher to use one cam at a time or all cam at a time for detecting marker. (default : 0) \nsupported options\n0 : use one cam at a time\n1 : use all cameras")
         
         #### params related to marker detection #####
         parser.add_argument("--aruco_dict",type = str , default = "DICT_4X4_50",help = "Aruco Dictionary family used for detection. (default : DICT_4X4_50)")
         parser.add_argument("--front_cam_marker_id",type = int , default = 0 , help = "marker id for front camera. (default : 0)")
         parser.add_argument("--right_cam_marker_id",type = int , default = 1 , help = "marker id for right camra. (default : 1)")
         parser.add_argument("--left_cam_marker_id",type = int , default = 2, help = "marker id for left camera. (default : 2)")
-        parser.add_argument("--record_frame_count",type = int,default = 100,help = "number of frames to record as video")
-        parser.add_argument("--videoplayback_build",type=str,default = None,help = "path to VideoPlayback build")
+        parser.add_argument("--record_frame_count",type = int,default = 100,help = "number of frames to record as video. (default : 100)")
+        parser.add_argument("--videoplayback_build",type=str,default = None,help = "path to VideoPlayback build. (default : None)")
         
         #### threshold params for ratio and csa ####
-        parser.add_argument("--ratio_without_side_cam_offset_min",type = float,default = 0.47,help = "min ratio to accept without side camera offset")
-        parser.add_argument("--ratio_without_side_cam_offset_max",type = float,default = 0.53,help = "max ratio to accept without side camera offset")
-        parser.add_argument("--csa_without_offset_min",type = float,default = 87,help = "min current steering angle to accept without sterring angle offset")
-        parser.add_argument("--csa_without_offset_max",type = float,default = 93,help = "max current steering angle to accept without sterring angle offset")
-        parser.add_argument("--target_ratio",type = float,default = 0.50,help = "target ratio to substiute in equation of side camera offsets")
-        parser.add_argument("--target_steering_angle",type = float,default=90.0,help = "targe steering angle")
-        parser.add_argument("--lane_width",type = float,default = None,help = "lanewidth of the gangway")
+        parser.add_argument("--ratio_without_side_cam_offset_min",type = float,default = 0.47,help = "min ratio to accept without side camera offset. (default : 0.47)")
+        parser.add_argument("--ratio_without_side_cam_offset_max",type = float,default = 0.53,help = "max ratio to accept without side camera offset. (default : 0.53)")
+        parser.add_argument("--csa_without_offset_min",type = float,default = 87,help = "min current steering angle to accept without sterring angle offset. (default : 87)")
+        parser.add_argument("--csa_without_offset_max",type = float,default = 93,help = "max current steering angle to accept without sterring angle offset. (default : 93)")
+        parser.add_argument("--target_ratio",type = float,default = 0.50,help = "target ratio to substiute in equation of side camera offsets. (default : 0.50)")
+        parser.add_argument("--target_steering_angle",type = float,default=90.0,help = "targe steering angle. (default : 90.0)")
+        parser.add_argument("--lane_width",type = float,default = None,help = "lanewidth of the gangway. (default : None)")
         
         self.args = parser.parse_args()
         

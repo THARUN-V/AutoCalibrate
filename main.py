@@ -192,9 +192,41 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
             self.logger.error(f"current position of BOT or CAMERA is not accepted")
             exit()
         
-    
+    def get_formatted_timestamp(self):
+        """
+        Utility function to add formatted string with time stamp and log level, while taking user input.
+        """
+        
+        log_level = "INFO"
+        timestamp = datetime.now().strftime("%d/%m/%y %H:%M:%S")
+        
+        return f"[{timestamp}, {log_level}]"
         
     def run_calibration(self):
+        
+        
+        ########## Prompt the user regarding overwritting of current json file and instruct the user to take backup of current json file ################
+        self.logger.info("**** This Script overwrites the current json file for updating params , Take backup of current json file before proceeding .. ****")
+        choice = input(f"{self.get_formatted_timestamp()} Enter y,to proceed , n to exit : ")
+        
+        if choice == "n":
+            exit()
+        if choice == "y":
+            pass
+        ####### End of, Prompt the user regarding overwritting of current json file and instruct the user to take backup of current json file ###########
+        
+        ######### Instruct the user to place the markers before proceeding for camera id mapping ##########
+        self.logger.info("*** Place the Marker in fornt of cam before proceeding for camera id mapping ***")
+        self.logger.info("*** follow the sequence of markers to be placed in front of camera ***")
+        self.logger.info(f"*** [ FrontCamera : {self.args.front_cam_marker_id} | RightCamera : {self.args.right_cam_marker_id} | LeftCamera | {self.args.left_cam_marker_id} ] ***")
+        
+        choice = input(f"{self.get_formatted_timestamp()} Enter y when markers are placed in front of camera's , n to exit : ")
+        
+        if choice == "y":
+            pass
+        if choice == "n":
+            exit()
+        ##### End of, Instruct the user to place the markers before proceeding for camera id mapping ######
         
         ############################### Camera Id Mapping ####################################################
         self.logger.info("========= Performing Camera Id Mapping =========")
@@ -238,9 +270,9 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         with open(self.args.json_path,"w") as updated_json:
             json.dump(self.current_json,updated_json,indent = 4)
         self.logger.info(f"Overwritten leftSideCameraOffset : 0 and rightSideCameraOffset : 0")
-        ### end of setting side camera offsets to zero in current json file ###
+        ############## end of setting side camera offsets to zero in current json file ####################
         
-        ### run the existing videoplayback build with video/picture mode to estimate ratio with sidecamera offsets set to zroe ###
+        ### run the existing videoplayback build with video/picture mode to estimate ratio with sidecamera offsets set to zero ###
         # check if the video file exists #
         if len(os.listdir(self.data_dir)) < self.args.n_cam:
             self.logger.error(f"Only {len(os.listdir(self.data_dir))} exists out of {self.args.n_cam}")
@@ -288,7 +320,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     
                     self.check_and_update_estimated_offset(cam_name = "left",estimated_ratio = left_estimated_ratio_mean , estimated_csa = left_csa_mean)
         
-        ### End of, run the existing videoplayback build with video/picture mode to estimate ratio with sidecamera offsets set to zroe ###
+        ### End of, run the existing videoplayback build with video/picture mode to estimate ratio with sidecamera offsets set to zero ###
         
             
         
