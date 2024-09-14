@@ -151,11 +151,34 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
             self.logger.error(f"!!!!! No came name provided for estimate offset method !!!!!!")
             exit()
         
-        if cam_name == "Right":
+        if cam_name == "right":
             return int(self.args.lane_width * (self.args.target_ratio - measured_ratio))
         
-        if cam_name == "Left":
+        if cam_name == "left":
             return int(self.args.lane_width * (1 - measured_ratio - self.args.target_ratio))
+        
+    def check_and_update_estimated_offset(self,estimated_ratio,cam_name = None):
+        """
+        utility function to check whether the current estimated ratio without side cam offset lies in acceptable range
+        and update the same in json file.
+        """
+        # check if the estimated ratio is between acceptable ratio that is calculated without applying offset
+        if estimated_ratio >= self.args.ratio_without_side_cam_offset_min and estimated_ratio <= self.args.ratio_without_side_cam_offset_max:
+            self.logger.info(f"Current {cam_name}_ratio is in acceptable range")
+            # if the current measured ratio is in acceptable range, estimate the side camera offset using the equation by setting target ratio to 0.5
+            self.logger.info(f"Estimating {cam_name}SideCameraOffset with measured_ratio : {estimated_ratio}")
+            Estimated_SideCameraOffset = self.estimate_offset(cam_name = cam_name,measured_ratio = estimated_ratio)
+            self.logger.info(f"Estimated {cam_name}SideCameraOffset : {Estimated_SideCameraOffset}")
+            # Overwrite right camera offset in json file
+            self.logger.info(f"Overwriting {cam_name}SideCameraOffset in Json file")
+            with open(self.args.json_path,"w") as updated_json:
+                self.current_json["CamParams"][0][f"{cam_name}SideCameraOffset"] = Estimated_SideCameraOffset
+                json.dump(self.current_json,updated_json,indent = 4)
+            self.logger.info(f"Done , Overwriting of {cam_name}SideCameraOffset in Json file")
+        else:
+            self.logger.error(f"Current {cam_name} Ratio : {estimated_ratio} does not lie in acceptable range.")
+            self.logger.error(f"current position of BOT or CAMERA is not accepted")
+            exit()
         
     
         
@@ -236,27 +259,32 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                 if "Right" in log_file:
                     # get the ratio as list
 
-                    right_ratio_mean , right_csa_mean = self.get_ratio_csa_from_log_file(log_file)
+                    right_estimated_ratio , right_csa_mean = self.get_ratio_csa_from_log_file(log_file)
                     
-                    self.logger.info(f"ratio_mean : {right_ratio_mean} | csa_mean : {right_csa_mean}")
+                    self.logger.info(f"ratio_mean : {right_estimated_ratio} | csa_mean : {right_csa_mean}")
                     
                     # check if the estimated ratio is between acceptable ratio that is calculated without applying offset
-                    if right_ratio_mean >= self.args.ratio_without_side_cam_offset_min and right_ratio_mean <= self.args.ratio_without_side_cam_offset_max:
-                        self.logger.info("Current Ratio is in acceptable range")
-                        # if the current measured ratio is in acceptable range, estimate the side camera offset using the equation by setting target ratio to 0.5
-                        self.logger.info(f"Estimating rightSideCameraOffset with measured_ratio : {right_ratio_mean}")
-                        Estimated_rightSideCameraOffset = self.estimate_offset(cam_name = "Right",measured_ratio = right_ratio_mean)
-                        self.logger.info(f"Estimated rightSideCameraOffset : {Estimated_rightSideCameraOffset}")
-                        # Overwrite right camera offset in json file
-                        self.logger.info("Overwriting righSideCameraOffset in Json file")
-                        with open(self.args.json_path,"w") as updated_json:
-                            self.current_json["CamParams"][0]["rightSideCameraOffset"] = Estimated_rightSideCameraOffset
-                            json.dump(self.current_json,updated_json,indent = 4)
-                        self.logger.info("Done , Overwriting of rightSideCameraOffset in Json file")
-                    else:
-                        self.logger.error(f"Current Ratio : {right_ratio_mean} does not lie in acceptable range.")
-                        self.logger.error(f"current position of BOT or CAMERA is not accepted")
-                        exit()
+                    # if estimated_ratio >= self.args.ratio_without_side_cam_offset_min and estimated_ratio <= self.args.ratio_without_side_cam_offset_max:
+                    #     self.logger.info("Current Ratio is in acceptable range")
+                    #     # if the current measured ratio is in acceptable range, estimate the side camera offset using the equation by setting target ratio to 0.5
+                    #     self.logger.info(f"Estimating rightSideCameraOffset with measured_ratio : {estimated_ratio}")
+                    #     Estimated_rightSideCameraOffset = self.estimate_offset(cam_name = "Right",measured_ratio = estimated_ratio)
+                    #     self.logger.info(f"Estimated rightSideCameraOffset : {Estimated_rightSideCameraOffset}")
+                    #     # Overwrite right camera offset in json file
+                    #     self.logger.info("Overwriting righSideCameraOffset in Json file")
+                    #     with open(self.args.json_path,"w") as updated_json:
+                    #         self.current_json["CamParams"][0]["rightSideCameraOffset"] = Estimated_rightSideCameraOffset
+                    #         json.dump(self.current_json,updated_json,indent = 4)
+                    #     self.logger.info("Done , Overwriting of rightSideCameraOffset in Json file")
+                    # else:
+                    #     self.logger.error(f"Current Ratio : {estimated_ratio} does not lie in acceptable range.")
+                    #     self.logger.error(f"current position of BOT or CAMERA is not accepted")
+                    #     exit()
+                    self.check_and_update_estimated_offset(cam_name = "right", estimated_ratio = right_estimated_ratio)
+                        
+                # get the left cam log file
+                if "Left" in log_file:
+                    pass
         
         ### End of, run the existing videoplayback build with video/picture mode to estimate ratio with sidecamera offsets set to zroe ###
         
