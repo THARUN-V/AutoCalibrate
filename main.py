@@ -9,6 +9,7 @@ import cv2
 from datetime import datetime
 import os
 import numpy
+import sys
 
 class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
     
@@ -52,11 +53,14 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         # count to skip frames that is of green color
         self.skip_frame_count = 3
         # count to keep track of frames being written
-        self.current_frame_count = 0
+        self.current_frame_count = 1
         # directory to store video and log files
         self.data_dir = os.path.join(os.getcwd(),datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
         # create directory to writer log and video 
         os.mkdir(self.data_dir)
+        
+        # flag to print progress
+        self.first_prog_msg = True
             
     def detect_and_map_cam_ids(self):
         """
@@ -201,6 +205,19 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         timestamp = datetime.now().strftime("%d/%m/%y %H:%M:%S")
         
         return f"[{timestamp}, {log_level}]"
+    
+    def log_progress(self,message):
+        """
+        Utility function to log the progress.
+        """
+        if abs(self.current_frame_count-self.args.record_frame_count == 0):
+            sys.stdout.write(f"\r{message}")    
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+        else:
+            sys.stdout.write(f"\r{message}")
+            sys.stdout.flush()
+        
         
     def run_calibration(self):
         
@@ -252,15 +269,26 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
             cap = cv2.VideoCapture(cam_index)
             cap.set(cv2.CAP_PROP_FRAME_WIDTH,self.w)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT,self.h)
-            self.logger.info(f"Recording Video of {cam_name}")
+            
             while self.current_frame_count <= self.args.record_frame_count:
                 ret , frame = cap.read()
                 if ret:
                     if self.current_frame_count > self.skip_frame_count:
                         out.write_image(cam_name,frame)
+                        
+                        # # print progress of writing frames #
+                        # if abs(self.current_frame_count-self.args.record_frame_count == 0):
+                        #     self.log_progress(f"{self.get_formatted_timestamp()} Recording Video Of {cam_name} [{self.current_frame_count}/{self.args.record_frame_count} frames]")
+                        #     sys.stdout.write("\n")
+                        #     sys.stdout.flush()
+                        # else:
+                        #     self.log_progress(f"{self.get_formatted_timestamp()} Recording Video Of {cam_name} [{self.current_frame_count}/{self.args.record_frame_count} frames]")
+                        self.log_progress(f"{self.get_formatted_timestamp()} Recording Video Of {cam_name} [{self.current_frame_count}/{self.args.record_frame_count} frames]")
+                        
+                        ####################################
+                        
                     self.current_frame_count += 1
             self.current_frame_count = 0
-                    
         # release the video writer objects
         out.clear_writer()
         ###########################  End Record video of Front,Left and Right for debug and estimating offsets ###################
