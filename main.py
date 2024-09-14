@@ -8,6 +8,7 @@ import logging
 import cv2
 from datetime import datetime
 import os
+import numpy
 
 class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
     
@@ -117,6 +118,31 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
             if id_detected:
                 cap.release()
     
+    def get_ratio_csa_from_log_file(self,log_file_path):
+        """
+        utility function to get ratio and current steering angle from log file provided as a single value
+        """
+        
+        # iterate over log file get the mean ratio from string 
+        ratio = [[float(string.split("=")[1]) for string in line.split(";") if "ratio" in string][0]
+                 for line in open(log_file_path,"r").readlines() 
+                 if ";" in line and "ratio" in line]
+        
+        ratio_mean = numpy.mean(numpy.array(ratio))
+        
+        # iterate over log file get the mean current steering angle from string
+        csa = [[float(string.split("=")[1]) for string in line.split(";") if "CSA" in string][0]
+                 for line in open(log_file_path,"r").readlines() 
+                 if ";" in line and "CSA" in line]
+        
+        csa_mean = numpy.mean(numpy.array(csa))
+        
+        # print(f"ratio_mean : {ratio_mean}")
+        # print(f"csa_mean : {csa_mean}")
+        
+        return ratio_mean , csa_mean
+    
+        
     def run_calibration(self):
         
         ############################### Camera Id Mapping ####################################################
@@ -190,7 +216,13 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         for log_file in os.listdir(self.data_dir):
             log_file = os.path.join(self.data_dir,log_file)
             if ".txt" in log_file:
-                print(log_file)
+                # get the right cam log file
+                if "Right" in log_file:
+                    # get the ratio as list
+
+                    ratio_mean , csa_mean = self.get_ratio_csa_from_log_file(log_file)
+                    
+                    self.logger.info(f"ratio_mean : {ratio_mean} | csa_mean : {csa_mean}")
         
         ### End of, run the existing videoplayback build with video/picture mode to estimate ratio with sidecamera offsets set to zroe ###
         
