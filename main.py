@@ -328,29 +328,9 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         self.logger.info(f"Overwritten leftSideCameraOffset : 0 and rightSideCameraOffset : 0")
         ############## end of setting side camera offsets to zero in current json file ####################
         
-        ### run the existing videoplayback build with video/picture mode to estimate ratio with sidecamera offsets set to zero ###
-        # check if the video file exists #
-        # if len(os.listdir(self.data_dir)) < self.args.n_cam:
-        #     self.logger.error(f"Only {len(os.listdir(self.data_dir))} exists out of {self.args.n_cam}")
-        
-        # self.logger.info(f"Executing VideoPlayback build with lefSideCameraOffset : {self.current_json['CamParams'][0]['leftSideCameraOffset']} , rightCameraOffset : {self.current_json['CamParams'][0]['rightSideCameraOffset']}")
-        
-        # iterater over the video file generate log 
-        # for video_file in os.listdir(self.data_dir):
-        #     if ".mp4" in video_file:
-        #         if "Right" in video_file or "Left" in video_file:
-        #             # print(os.path.join(self.data_dir,video_file))
-        #             # command to run videoplayback build
-        #             log_file = os.path.join(self.data_dir,video_file.split(".mp4")[0]+"Log.txt")
-        #             cmd = f"{self.args.videoplayback_build} -i /home/tharun/THARUN/Data/TestVideos/TKAP_ORANGE_LANES/Left_Camera_Orange_Video_8_161223.mp4 -v > {log_file} 2>&1"
-                    
-        #             # run the command
-        #             process = os.system(cmd)
-                    
-        #             # check if the process has executed and terminated successfully
-        #             if process == 0:
-        #                 self.logger.info(f"Done with {os.path.join(self.data_dir,video_file)}")
+        ##### run the existing videoplayback build with video/picture mode to estimate ratio with sidecamera offsets set to zero  #######
         self.generate_log_using_existing_build()
+        ### End of, run the existing videoplayback build with video/picture mode to estimate ratio with sidecamera offsets set to zero ###
         
         # get the log file for right cam and left cam
         for log_file in os.listdir(self.data_dir):
@@ -377,7 +357,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     
                     self.check_and_update_estimated_offset(cam_name = "left",estimated_ratio = left_estimated_ratio_mean , estimated_csa = left_csa_mean)
         
-        ### End of, run the existing videoplayback build with video/picture mode to estimate ratio with sidecamera offsets set to zero ###
+        
         
             
         
