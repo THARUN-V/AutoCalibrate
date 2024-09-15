@@ -121,6 +121,33 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                             
             if id_detected:
                 cap.release()
+                
+    def record_video(self):
+        """
+        utility function to record video of front, right and left for generating log file to estimate offsets.
+        """
+        
+        # initialize cam writer object
+        out = CameraWriter(self.data_dir,self.w,self.h)
+        for cam_name , cam_index in self.cam_name_and_index.items():
+            cap = cv2.VideoCapture(cam_index)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH,self.w)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT,self.h)
+            
+            while self.current_frame_count <= self.args.record_frame_count:
+                ret , frame = cap.read()
+                if ret:
+                    if self.current_frame_count > self.skip_frame_count:
+                        out.write_image(cam_name,frame)
+                        
+                        #### print progress of writing frames ######
+                        self.log_progress(f"{self.get_formatted_timestamp()} Recording Video Of {cam_name} [{self.current_frame_count}/{self.args.record_frame_count} frames]")
+                        # End of, print progress of writing frames #
+                        
+                    self.current_frame_count += 1
+            self.current_frame_count = 0
+        # release the video writer objects
+        out.clear_writer()
     
     def get_ratio_csa_from_log_file(self,log_file_path):
         """
@@ -263,27 +290,28 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         #### End of Instruct the user to remove markers before recording video for offset estimation ##
         
         ############################## Record video of Front,Left and Right for debug and estimating offsets ###################
-        # initialize cam writer object
-        out = CameraWriter(self.data_dir,self.w,self.h)
-        for cam_name , cam_index in self.cam_name_and_index.items():
-            cap = cv2.VideoCapture(cam_index)
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH,self.w)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT,self.h)
+        # # initialize cam writer object
+        # out = CameraWriter(self.data_dir,self.w,self.h)
+        # for cam_name , cam_index in self.cam_name_and_index.items():
+        #     cap = cv2.VideoCapture(cam_index)
+        #     cap.set(cv2.CAP_PROP_FRAME_WIDTH,self.w)
+        #     cap.set(cv2.CAP_PROP_FRAME_HEIGHT,self.h)
             
-            while self.current_frame_count <= self.args.record_frame_count:
-                ret , frame = cap.read()
-                if ret:
-                    if self.current_frame_count > self.skip_frame_count:
-                        out.write_image(cam_name,frame)
+        #     while self.current_frame_count <= self.args.record_frame_count:
+        #         ret , frame = cap.read()
+        #         if ret:
+        #             if self.current_frame_count > self.skip_frame_count:
+        #                 out.write_image(cam_name,frame)
                         
-                        #### print progress of writing frames ######
-                        self.log_progress(f"{self.get_formatted_timestamp()} Recording Video Of {cam_name} [{self.current_frame_count}/{self.args.record_frame_count} frames]")
-                        # End of, print progress of writing frames #
+        #                 #### print progress of writing frames ######
+        #                 self.log_progress(f"{self.get_formatted_timestamp()} Recording Video Of {cam_name} [{self.current_frame_count}/{self.args.record_frame_count} frames]")
+        #                 # End of, print progress of writing frames #
                         
-                    self.current_frame_count += 1
-            self.current_frame_count = 0
-        # release the video writer objects
-        out.clear_writer()
+        #             self.current_frame_count += 1
+        #     self.current_frame_count = 0
+        # # release the video writer objects
+        # out.clear_writer()
+        self.record_video()
         ###########################  End Record video of Front,Left and Right for debug and estimating offsets ###################
         
         ########################### side camera offset estimation ######################################################
