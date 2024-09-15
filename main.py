@@ -148,6 +148,33 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
             self.current_frame_count = 0
         # release the video writer objects
         out.clear_writer()
+        
+    def generate_log_using_existing_build(self):
+        """
+        Utility function to genreate log to get ratio and steering angle, using the existing build.
+        """
+        # check if the video file exists #
+        if len(os.listdir(self.data_dir)) < self.args.n_cam:
+            self.logger.error(f"Only {len(os.listdir(self.data_dir))} exists out of {self.args.n_cam}")
+        
+        self.logger.info(f"Executing VideoPlayback build with lefSideCameraOffset : {self.current_json['CamParams'][0]['leftSideCameraOffset']} , rightCameraOffset : {self.current_json['CamParams'][0]['rightSideCameraOffset']}")
+        
+        # iterater over the video file and generate log 
+        for video_file in os.listdir(self.data_dir):
+            if ".mp4" in video_file:
+                if "Right" in video_file or "Left" in video_file:
+                    # print(os.path.join(self.data_dir,video_file))
+                    # command to run videoplayback build
+                    log_file = os.path.join(self.data_dir,video_file.split(".mp4")[0]+"Log.txt")
+                    cmd = f"{self.args.videoplayback_build} -i /home/tharun/THARUN/Data/TestVideos/TKAP_ORANGE_LANES/Left_Camera_Orange_Video_8_161223.mp4 -v > {log_file} 2>&1"
+                    
+                    # run the command
+                    process = os.system(cmd)
+                    
+                    # check if the process has executed and terminated successfully
+                    if process == 0:
+                        self.logger.info(f"Done with {os.path.join(self.data_dir,video_file)}")
+    
     
     def get_ratio_csa_from_log_file(self,log_file_path):
         """
@@ -167,9 +194,6 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                  if ";" in line and "CSA" in line]
         
         csa_mean = numpy.mean(numpy.array(csa))
-        
-        # print(f"ratio_mean : {ratio_mean}")
-        # print(f"csa_mean : {csa_mean}")
         
         return ratio_mean , csa_mean
     
@@ -289,30 +313,9 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         if choice == "n": exit()
         #### End of Instruct the user to remove markers before recording video for offset estimation ##
         
-        ############################## Record video of Front,Left and Right for debug and estimating offsets ###################
-        # # initialize cam writer object
-        # out = CameraWriter(self.data_dir,self.w,self.h)
-        # for cam_name , cam_index in self.cam_name_and_index.items():
-        #     cap = cv2.VideoCapture(cam_index)
-        #     cap.set(cv2.CAP_PROP_FRAME_WIDTH,self.w)
-        #     cap.set(cv2.CAP_PROP_FRAME_HEIGHT,self.h)
-            
-        #     while self.current_frame_count <= self.args.record_frame_count:
-        #         ret , frame = cap.read()
-        #         if ret:
-        #             if self.current_frame_count > self.skip_frame_count:
-        #                 out.write_image(cam_name,frame)
-                        
-        #                 #### print progress of writing frames ######
-        #                 self.log_progress(f"{self.get_formatted_timestamp()} Recording Video Of {cam_name} [{self.current_frame_count}/{self.args.record_frame_count} frames]")
-        #                 # End of, print progress of writing frames #
-                        
-        #             self.current_frame_count += 1
-        #     self.current_frame_count = 0
-        # # release the video writer objects
-        # out.clear_writer()
+        ### Record video of Front,Left and Right for debug and estimating offsets #########
         self.record_video()
-        ###########################  End Record video of Front,Left and Right for debug and estimating offsets ###################
+        ###  End Record video of Front,Left and Right for debug and estimating offsets ####
         
         ########################### side camera offset estimation ######################################################
         
@@ -327,26 +330,27 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         
         ### run the existing videoplayback build with video/picture mode to estimate ratio with sidecamera offsets set to zero ###
         # check if the video file exists #
-        if len(os.listdir(self.data_dir)) < self.args.n_cam:
-            self.logger.error(f"Only {len(os.listdir(self.data_dir))} exists out of {self.args.n_cam}")
+        # if len(os.listdir(self.data_dir)) < self.args.n_cam:
+        #     self.logger.error(f"Only {len(os.listdir(self.data_dir))} exists out of {self.args.n_cam}")
         
-        self.logger.info(f"Executing VideoPlayback build with lefSideCameraOffset : {self.current_json['CamParams'][0]['leftSideCameraOffset']} , rightCameraOffset : {self.current_json['CamParams'][0]['rightSideCameraOffset']}")
+        # self.logger.info(f"Executing VideoPlayback build with lefSideCameraOffset : {self.current_json['CamParams'][0]['leftSideCameraOffset']} , rightCameraOffset : {self.current_json['CamParams'][0]['rightSideCameraOffset']}")
         
         # iterater over the video file generate log 
-        for video_file in os.listdir(self.data_dir):
-            if ".mp4" in video_file:
-                if "Right" in video_file or "Left" in video_file:
-                    # print(os.path.join(self.data_dir,video_file))
-                    # command to run videoplayback build
-                    log_file = os.path.join(self.data_dir,video_file.split(".mp4")[0]+"Log.txt")
-                    cmd = f"{self.args.videoplayback_build} -i /home/tharun/THARUN/Data/TestVideos/TKAP_ORANGE_LANES/Left_Camera_Orange_Video_8_161223.mp4 -v > {log_file} 2>&1"
+        # for video_file in os.listdir(self.data_dir):
+        #     if ".mp4" in video_file:
+        #         if "Right" in video_file or "Left" in video_file:
+        #             # print(os.path.join(self.data_dir,video_file))
+        #             # command to run videoplayback build
+        #             log_file = os.path.join(self.data_dir,video_file.split(".mp4")[0]+"Log.txt")
+        #             cmd = f"{self.args.videoplayback_build} -i /home/tharun/THARUN/Data/TestVideos/TKAP_ORANGE_LANES/Left_Camera_Orange_Video_8_161223.mp4 -v > {log_file} 2>&1"
                     
-                    # run the command
-                    process = os.system(cmd)
+        #             # run the command
+        #             process = os.system(cmd)
                     
-                    # check if the process has executed and terminated successfully
-                    if process == 0:
-                        self.logger.info(f"Done with {os.path.join(self.data_dir,video_file)}")
+        #             # check if the process has executed and terminated successfully
+        #             if process == 0:
+        #                 self.logger.info(f"Done with {os.path.join(self.data_dir,video_file)}")
+        self.generate_log_using_existing_build()
         
         # get the log file for right cam and left cam
         for log_file in os.listdir(self.data_dir):
