@@ -233,7 +233,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         ######### Instruct the user to place the markers before proceeding for camera id mapping ##########
         self.logger.info("*** Place the Marker in fornt of cam before proceeding for camera id mapping ***")
         self.logger.info("*** follow the sequence of markers to be placed in front of camera ***")
-        self.logger.info(f"*** [ FrontCamera : {self.args.front_cam_marker_id} | RightCamera : {self.args.right_cam_marker_id} | LeftCamera | {self.args.left_cam_marker_id} ] ***")
+        self.logger.info(f"*** [ FrontCamera : {self.args.front_cam_marker_id} | RightCamera : {self.args.right_cam_marker_id} | LeftCamera : {self.args.left_cam_marker_id} ] ***")
         
         choice = input(f"{self.get_formatted_timestamp()} Enter y when markers are placed in front of camera's , n to exit : ")
         
@@ -276,16 +276,9 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     if self.current_frame_count > self.skip_frame_count:
                         out.write_image(cam_name,frame)
                         
-                        # # print progress of writing frames #
-                        # if abs(self.current_frame_count-self.args.record_frame_count == 0):
-                        #     self.log_progress(f"{self.get_formatted_timestamp()} Recording Video Of {cam_name} [{self.current_frame_count}/{self.args.record_frame_count} frames]")
-                        #     sys.stdout.write("\n")
-                        #     sys.stdout.flush()
-                        # else:
-                        #     self.log_progress(f"{self.get_formatted_timestamp()} Recording Video Of {cam_name} [{self.current_frame_count}/{self.args.record_frame_count} frames]")
+                        #### print progress of writing frames ######
                         self.log_progress(f"{self.get_formatted_timestamp()} Recording Video Of {cam_name} [{self.current_frame_count}/{self.args.record_frame_count} frames]")
-                        
-                        ####################################
+                        # End of, print progress of writing frames #
                         
                     self.current_frame_count += 1
             self.current_frame_count = 0
