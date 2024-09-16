@@ -10,6 +10,8 @@ from datetime import datetime
 import os
 import numpy
 import sys
+import threading
+import time
 
 class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
     
@@ -61,6 +63,10 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         
         # flag to print progress
         self.first_prog_msg = True
+        
+        # flag to indicate the progress of executing video playback with recorded video
+        self.progress_done = threading.Event()
+        self.progress_msg = None
             
     def detect_and_map_cam_ids(self):
         """
@@ -163,7 +169,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         for video_file in os.listdir(self.data_dir):
             if ".mp4" in video_file:
                 if "Right" in video_file or "Left" in video_file:
-                    # print(os.path.join(self.data_dir,video_file))
+                    
                     # command to run videoplayback build
                     log_file = os.path.join(self.data_dir,video_file.split(".mp4")[0]+"Log.txt")
                     
@@ -172,6 +178,12 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     # cmd = f"{self.args.videoplayback_build} -i /home/tharun/THARUN/Data/TestVideos/TKAP_ORANGE_LANES/Left_Camera_Orange_Video_8_161223.mp4 -v > {log_file} 2>&1"
                     
                     
+                    # Start the progress indicator thread
+                    self.progress_msg = f"{self.get_formatted_timestamp()} Executing VideoPlayback build with {video_file}"
+                    progress_thread = threading.Thread(target = self.print_progress)
+                    progress_thread.start()
+                    
+                    # execute VideoPlayback with recorded video
                     cmd = f"{self.args.videoplayback_build} -i {os.path.join(self.data_dir,video_file)} -v > {log_file} 2>&1"
                     
                     # run the command
@@ -179,8 +191,12 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     
                     # check if the process has executed and terminated successfully
                     if process == 0:
+                        self.progress_done.set()
+                        progress_thread.join()
                         self.logger.info(f"Done with {os.path.join(self.data_dir,video_file)}")
                     else:
+                        self.progress_done.set()
+                        progress_thread.join()
                         self.logger.error(f"!!!! Error in Executing VideoPlayback Build with current Video file !!!!")
                         exit()
     
@@ -277,6 +293,19 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
             sys.stdout.write(f"\r{message}")
             sys.stdout.flush()
         
+        
+    def print_progress(self):
+        """
+        Utility function to print the progress of executing VideoPlayback build with the recorded video.
+        """
+        symbols = ['./','.\\']
+        while not self.progress_done.is_set():
+            for symbol in symbols:
+                sys.stdout.write(f"\r{self.progress_msg} {symbol}")
+                sys.stdout.flush()
+                time.sleep(0.5)
+        sys.stdout.write(f'\r{self.progress_msg} [Done] \n')
+        sys.stdout.flush()
         
     def run_calibration(self):
         
