@@ -166,7 +166,13 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     # print(os.path.join(self.data_dir,video_file))
                     # command to run videoplayback build
                     log_file = os.path.join(self.data_dir,video_file.split(".mp4")[0]+"Log.txt")
-                    cmd = f"{self.args.videoplayback_build} -i /home/tharun/THARUN/Data/TestVideos/TKAP_ORANGE_LANES/Left_Camera_Orange_Video_8_161223.mp4 -v > {log_file} 2>&1"
+                    
+                    ### for debug ###
+                    # print(f"VideoName : {os.path.join(self.data_dir,video_file)}")
+                    # cmd = f"{self.args.videoplayback_build} -i /home/tharun/THARUN/Data/TestVideos/TKAP_ORANGE_LANES/Left_Camera_Orange_Video_8_161223.mp4 -v > {log_file} 2>&1"
+                    
+                    
+                    cmd = f"{self.args.videoplayback_build} -i {os.path.join(self.data_dir,video_file)} -v > {log_file} 2>&1"
                     
                     # run the command
                     process = os.system(cmd)
@@ -174,7 +180,9 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     # check if the process has executed and terminated successfully
                     if process == 0:
                         self.logger.info(f"Done with {os.path.join(self.data_dir,video_file)}")
-    
+                    else:
+                        self.logger.error(f"!!!! Error in Executing VideoPlayback Build with current Video file !!!!")
+                        exit()
     
     def get_ratio_csa_from_log_file(self,log_file_path):
         """
