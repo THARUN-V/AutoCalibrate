@@ -167,24 +167,24 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         
         # iterater over the video file and generate log 
         for video_file in os.listdir(self.data_dir):
+            self.progress_done.clear()
             if ".mp4" in video_file:
                 if "Right" in video_file or "Left" in video_file:
                     
                     # command to run videoplayback build
                     log_file = os.path.join(self.data_dir,video_file.split(".mp4")[0]+"Log.txt")
                     
-                    ### for debug ###
-                    # print(f"VideoName : {os.path.join(self.data_dir,video_file)}")
-                    # cmd = f"{self.args.videoplayback_build} -i /home/tharun/THARUN/Data/TestVideos/TKAP_ORANGE_LANES/Left_Camera_Orange_Video_8_161223.mp4 -v > {log_file} 2>&1"
-                    
-                    
                     # Start the progress indicator thread
                     self.progress_msg = f"{self.get_formatted_timestamp()} Executing VideoPlayback build with {video_file}"
                     progress_thread = threading.Thread(target = self.print_progress)
                     progress_thread.start()
                     
+                    ### for debug ###
+                    # print(f"VideoName : {os.path.join(self.data_dir,video_file)}")
+                    cmd = f"{self.args.videoplayback_build} -i /home/tharun/THARUN/Data/TestVideos/TKAP_ORANGE_LANES/Left_Camera_Orange_Video_8_161223.mp4 -v > {log_file} 2>&1"
+                    
                     # execute VideoPlayback with recorded video
-                    cmd = f"{self.args.videoplayback_build} -i {os.path.join(self.data_dir,video_file)} -v > {log_file} 2>&1"
+                    # cmd = f"{self.args.videoplayback_build} -i {os.path.join(self.data_dir,video_file)} -v > {log_file} 2>&1"
                     
                     # run the command
                     process = os.system(cmd)
@@ -193,7 +193,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     if process == 0:
                         self.progress_done.set()
                         progress_thread.join()
-                        self.logger.info(f"Done with {os.path.join(self.data_dir,video_file)}")
+                        # self.logger.info(f"Done with {os.path.join(self.data_dir,video_file)}")
                     else:
                         self.progress_done.set()
                         progress_thread.join()
