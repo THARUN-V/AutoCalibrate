@@ -71,4 +71,7 @@ class ParseParams:
             if not os.path.exists(self.args.video_path):
                 self.logger.error(f"!!! Video Path {self.args.video_path} doesn't exists !!!")
                 return False
+            if not ".mp4" in self.args.video_path:
+                self.logger.error(f"!!! {self.args.video_path} is not a video file !!!")
+                return False
         return True
