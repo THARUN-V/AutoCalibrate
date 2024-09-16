@@ -1,5 +1,6 @@
 import argparse
 import logging
+import os
 
 class ParseParams:
     
@@ -30,6 +31,10 @@ class ParseParams:
         parser.add_argument("--target_ratio",type = float,default = 0.50,help = "target ratio to substiute in equation of side camera offsets. (default : 0.50)")
         parser.add_argument("--target_steering_angle",type = float,default=90.0,help = "targe steering angle. (default : 90.0)")
         
+        ### params for running the script in debug mode with the provided video file ###
+        parser.add_argument("--debug",action = "store_true",help = "param to run script in debug mode with provided vidoe file")
+        parser.add_argument("--video_path",type = str , default = None,help = "path to video file for debug mode")
+        
         self.args = parser.parse_args()
         
         # resolution of camera #
@@ -48,11 +53,22 @@ class ParseParams:
         function to check if all the required params are provided.
         """
         
-        if self.args.json_path == None:
-            self.logger.error("No Json File provided")
+        # if self.args.json_path == None:
+        #     self.logger.error("No Json File provided")
+        #     return False
+        if not os.path.exists(self.args.json_path):
+            self.logger.error(f"!!! No {self.args.json_path} exists !!!")
             return False
+            
         if self.args.videoplayback_build == None:
             self.logger.error("path to VideoPlayback build is not provided")
             return False
         
+        if self.args.debug :
+            if self.args.video_path == None:
+                self.logger.error("please provide the video path with --video_path <path_to_video_file> to run in --debug mode")
+                return False
+            if not os.path.exists(self.args.video_path):
+                self.logger.error(f"!!! Video Path {self.args.video_path} doesn't exists !!!")
+                return False
         return True

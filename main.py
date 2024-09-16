@@ -181,10 +181,16 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     
                     ### for debug ###
                     # print(f"VideoName : {os.path.join(self.data_dir,video_file)}")
-                    cmd = f"{self.args.videoplayback_build} -i /home/tharun/THARUN/Data/TestVideos/TKAP_ORANGE_LANES/Left_Camera_Orange_Video_8_161223.mp4 -v > {log_file} 2>&1"
+                    # cmd = f"{self.args.videoplayback_build} -i /home/tharun/THARUN/Data/TestVideos/TKAP_ORANGE_LANES/Left_Camera_Orange_Video_8_161223.mp4 -v > {log_file} 2>&1"yyy
+                    if self.args.debug:
+                        if os.path.exists(self.args.video_path):
+                            cmd = f"{self.args.videoplayback_build} -i {self.args.video_path} -v > {log_file} 2>&1"
+                        else:
+                            self.logger.error(f"!!! Video File {self.args.video_path} doesn't Exist !!!")
                     
                     # execute VideoPlayback with recorded video
-                    # cmd = f"{self.args.videoplayback_build} -i {os.path.join(self.data_dir,video_file)} -v > {log_file} 2>&1"
+                    else:
+                        cmd = f"{self.args.videoplayback_build} -i {os.path.join(self.data_dir,video_file)} -v > {log_file} 2>&1"
                     
                     # run the command
                     process = os.system(cmd)
@@ -319,7 +325,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         ####### End of, Prompt the user regarding overwritting of current json file and instruct the user to take backup of current json file ###########
         
         ######### Instruct the user to place the markers before proceeding for camera id mapping ##########
-        self.logger.info("*** Place the Marker in fornt of cam before proceeding for camera id mapping ***")
+        self.logger.info("*** Place the Marker in front of cam before proceeding for camera id mapping ***")
         self.logger.info("*** follow the sequence of markers to be placed in front of camera ***")
         self.logger.info(f"*** [ FrontCamera : {self.args.front_cam_marker_id} | RightCamera : {self.args.right_cam_marker_id} | LeftCamera : {self.args.left_cam_marker_id} ] ***")
         
