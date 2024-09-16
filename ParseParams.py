@@ -29,7 +29,6 @@ class ParseParams:
         parser.add_argument("--csa_without_offset_max",type = float,default = 93,help = "max current steering angle to accept without sterring angle offset. (default : 93)")
         parser.add_argument("--target_ratio",type = float,default = 0.50,help = "target ratio to substiute in equation of side camera offsets. (default : 0.50)")
         parser.add_argument("--target_steering_angle",type = float,default=90.0,help = "targe steering angle. (default : 90.0)")
-        parser.add_argument("--lane_width",type = float,default = None,help = "lanewidth of the gangway. (default : None)")
         
         self.args = parser.parse_args()
         
@@ -54,9 +53,6 @@ class ParseParams:
             return False
         if self.args.videoplayback_build == None:
             self.logger.error("path to VideoPlayback build is not provided")
-            return False
-        if self.args.lane_width == None:
-            self.logger.error("land_width not provided , please provide the lane_width param by --lane_width <lane_width>")
             return False
         
         return True

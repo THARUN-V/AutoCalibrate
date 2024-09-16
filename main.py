@@ -207,10 +207,10 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
             exit()
         
         if cam_name == "right":
-            return int(self.args.lane_width * (self.args.target_ratio - measured_ratio)) , int(self.args.target_steering_angle - measured_steering_angle)
+            return int(self.current_json["DebugParams"][0]["PathWidth"] * (self.args.target_ratio - measured_ratio)) , int(self.args.target_steering_angle - measured_steering_angle)
         
         if cam_name == "left":
-            return int(self.args.lane_width * (1 - measured_ratio - self.args.target_ratio)) , int(self.args.target_steering_angle - measured_steering_angle)
+            return int(self.current_json["DebugParams"][0]["PathWidth"] * (1 - measured_ratio - self.args.target_ratio)) , int(self.args.target_steering_angle - measured_steering_angle)
         
     def check_and_update_estimated_offset(self,estimated_ratio,estimated_csa,cam_name = None):
         """
