@@ -67,6 +67,9 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         # flag to indicate the progress of executing video playback with recorded video
         self.progress_done = threading.Event()
         self.progress_msg = None
+        
+        # videoplayback build name to pring in cli
+        self.build_name = self.args.videoplayback_build if len(self.args.videoplayback_build.split("/")) == 1 else self.args.videoplayback_build.split("/")[-1]
             
     def detect_and_map_cam_ids(self):
         """
@@ -163,7 +166,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         if len(os.listdir(self.data_dir)) < self.args.n_cam:
             self.logger.error(f"Only {len(os.listdir(self.data_dir))} exists out of {self.args.n_cam}")
         
-        self.logger.info(f"Executing VideoPlayback build with lefSideCameraOffset : {self.current_json['CamParams'][0]['leftSideCameraOffset']} , rightCameraOffset : {self.current_json['CamParams'][0]['rightSideCameraOffset']}")
+        self.logger.info(f"Executing VideoPlayback build [{self.build_name}] with lefSideCameraOffset : {self.current_json['CamParams'][0]['leftSideCameraOffset']} , rightCameraOffset : {self.current_json['CamParams'][0]['rightSideCameraOffset']}")
         
         # iterater over the video file and generate log 
         for video_file in os.listdir(self.data_dir):
@@ -175,7 +178,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     log_file = os.path.join(self.data_dir,video_file.split(".mp4")[0]+"Log.txt")
                     
                     # Start the progress indicator thread
-                    self.progress_msg = f"{self.get_formatted_timestamp()} Executing VideoPlayback build with {video_file}"
+                    self.progress_msg = f"{self.get_formatted_timestamp()} Executing VideoPlayback build [{self.build_name}] with {video_file}"
                     progress_thread = threading.Thread(target = self.print_progress)
                     progress_thread.start()
                     
@@ -317,7 +320,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         
         
         ########## Prompt the user regarding overwritting of current json file and instruct the user to take backup of current json file ################
-        self.logger.info("**** This Script overwrites the current json file for updating params , Take backup of current json file before proceeding .. ****")
+        self.logger.info("**** This Script overwrites the current json file for updating params , Take backup of current json file before proceeding if needed ****")
         choice = input(f"{self.get_formatted_timestamp()} Enter y,to proceed , n to exit : ")
         
         if choice == "n": exit()
@@ -327,7 +330,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         ######### Instruct the user to place the markers before proceeding for camera id mapping ##########
         self.logger.info("*** Place the Marker in front of cam before proceeding for camera id mapping ***")
         self.logger.info("*** follow the sequence of markers to be placed in front of camera ***")
-        self.logger.info(f"*** [ FrontCamera : {self.args.front_cam_marker_id} | RightCamera : {self.args.right_cam_marker_id} | LeftCamera : {self.args.left_cam_marker_id} ] ***")
+        self.logger.info(f"*** [ FrontCameraId : {self.args.front_cam_marker_id} | RightCameraId : {self.args.right_cam_marker_id} | LeftCameraId : {self.args.left_cam_marker_id} ] ***")
         
         choice = input(f"{self.get_formatted_timestamp()} Enter y when markers are placed in front of camera's , n to exit : ")
         
@@ -382,23 +385,31 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                 # get the right cam log file
                 if "Right" in log_file:
                     # get the ratio and csa using log file
-
+                    
+                    self.logger.info("======== Estimating and Updating rightSideCamearaOffset and rightSteeringOffset ========")
+                    
                     right_estimated_ratio_mean , right_csa_mean = self.get_ratio_csa_from_log_file(log_file)
                     
                     self.logger.info(f"right_ratio_mean : {right_estimated_ratio_mean} | right_csa_mean : {right_csa_mean}")
                 
                     self.check_and_update_estimated_offset(cam_name = "right", estimated_ratio = right_estimated_ratio_mean , estimated_csa = right_csa_mean)
+                    
+                    self.logger.info("======== Estimating and Updating rightSideCamearaOffset and rightSteeringOffset [Done] ========")
                         
                 # get the left cam log file
                 if "Left" in log_file:
                     
                     # get the ratio and csa using the log file
                     
+                    self.logger.info("======== Estimating and Updating leftSideCamearaOffset and leftSteeringOffset ========")
+                    
                     left_estimated_ratio_mean , left_csa_mean = self.get_ratio_csa_from_log_file(log_file)
                     
                     self.logger.info(f"left_ratio_mean : {left_estimated_ratio_mean} | left_csa_mean : {left_csa_mean}")
                     
                     self.check_and_update_estimated_offset(cam_name = "left",estimated_ratio = left_estimated_ratio_mean , estimated_csa = left_csa_mean)
+                    
+                    self.logger.info("======== Estimating and Updating leftSideCamearaOffset and leftSteeringOffset [Done] ========")
         
         
         
