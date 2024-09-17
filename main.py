@@ -251,8 +251,8 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         and update the same in json file.
         """
         # check if the estimated ratio is between acceptable ratio that is calculated without applying offset
-        if estimated_ratio >= self.args.ratio_without_side_cam_offset_min and estimated_ratio <= self.args.ratio_without_side_cam_offset_max and \
-            estimated_csa >= self.args.csa_without_offset_min and estimated_csa <= self.args.csa_without_offset_max:
+        if (estimated_ratio >= self.args.ratio_without_side_cam_offset_min and estimated_ratio <= self.args.ratio_without_side_cam_offset_max) and \
+            (estimated_csa >= self.args.csa_without_offset_min and estimated_csa <= self.args.csa_without_offset_max):
                 
             self.logger.info(f"Current {cam_name}_ratio is in acceptable ratio")
             self.logger.info(f"Current {cam_name}_current_steering_anlge is in acceptable steering angle")
@@ -275,9 +275,13 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                 json.dump(self.current_json,updated_json,indent = 4)
             self.logger.info(f"Done , Overwriting of {cam_name}SideCameraOffset and {cam_name}SteeringOffset in Json file")
         else:
-            self.logger.error(f"Current {cam_name} Ratio : {estimated_ratio} does not lie in acceptable ratio.")
-            self.logger.error(f"Current {cam_name} Current Steering Angle : {estimated_csa} does not lie in acceptable steering angle")
-            self.logger.error(f"current position of BOT or CAMERA is not accepted")
+            # self.logger.error(f"current position of BOT or CAMERA is not accepted")
+            if not (estimated_ratio >= self.args.ratio_without_side_cam_offset_min and estimated_ratio <= self.args.ratio_without_side_cam_offset_max):
+                self.logger.error(f"Current {cam_name} Ratio : {estimated_ratio} does not lie in acceptable ratio.")
+                self.logger.error(f"--- There is Error in Tilt of Camera Position ---")
+            if not (estimated_csa >= self.args.csa_without_offset_min and estimated_csa <= self.args.csa_without_offset_max):
+                self.logger.error(f"Current {cam_name} Current Steering Angle : {estimated_csa} does not lie in acceptable steering angle")
+                self.logger.error(f"--- There is Error in Rotation of Camera Postition ---")
             exit()
         
     def get_formatted_timestamp(self):
