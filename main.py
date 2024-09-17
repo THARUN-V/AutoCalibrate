@@ -276,7 +276,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
             self.logger.info(f"Done , Overwriting of {cam_name}SideCameraOffset and {cam_name}SteeringOffset in Json file")
         else:
             self.logger.error(f"Current {cam_name} Ratio : {estimated_ratio} does not lie in acceptable ratio.")
-            self.logger.error(f"Current {cam_name} Current Steering Angle : {estimated_csa} doe not lie in acceptable steering angle")
+            self.logger.error(f"Current {cam_name} Current Steering Angle : {estimated_csa} does not lie in acceptable steering angle")
             self.logger.error(f"current position of BOT or CAMERA is not accepted")
             exit()
         
