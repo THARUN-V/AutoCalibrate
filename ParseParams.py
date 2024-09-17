@@ -32,7 +32,7 @@ class ParseParams:
         parser.add_argument("--target_steering_angle",type = float,default=90.0,help = "targe steering angle. (default : 90.0)")
         
         ### params for running the script in debug mode with the provided video file ###
-        parser.add_argument("--debug",action = "store_true",help = "param to run script in debug mode with provided vidoe file")
+        parser.add_argument("--debug",action = "store_true",help = "param to run script in debug mode with provided video file")
         parser.add_argument("--video_path",type = str , default = None,help = "path to video file for debug mode")
         
         self.args = parser.parse_args()
