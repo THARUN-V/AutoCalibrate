@@ -162,11 +162,20 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         """
         Utility function to genreate log to get ratio and steering angle, using the existing build.
         """
+                
         # check if the video file exists #
         if len(os.listdir(self.data_dir)) < self.args.n_cam:
             self.logger.error(f"Only {len(os.listdir(self.data_dir))} exists out of {self.args.n_cam}")
         
         self.logger.info(f"Executing VideoPlayback build [{self.build_name}] with lefSideCameraOffset : {self.current_json['CamParams'][0]['leftSideCameraOffset']} , rightCameraOffset : {self.current_json['CamParams'][0]['rightSideCameraOffset']}")
+        
+        # before executing, check if HostCommunication and HybridSwitch is set to 0 and false
+        if self.current_json["DebugParams"][0]["HostCommnFlag"] != 0 and self.current_json["DebugParams"][0]["HybridSwitch"] != False:
+            self.current_json["DebugParams"][0]["HostCommnFlag"] = 0
+            self.current_json["DebugParams"][0]["HybridSwitch"] = False
+            # update the params in json file before executing videoplayback script
+            with open(self.args.json_path,"w") as updated_json:
+                json.dump(self.current_json,updated_json,indent = 4)
         
         # iterater over the video file and generate log 
         for video_file in os.listdir(self.data_dir):
@@ -250,7 +259,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         """
         
         if cam_name == None:
-            self.logger.error(f"!!!!! No came name provided for estimate offset method !!!!!!")
+            self.logger.error(f"!!!!! No camera name provided for estimate offset method !!!!!!")
             sys.exit()
         
         if cam_name == "right":
@@ -291,10 +300,10 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         else:
             # self.logger.error(f"current position of BOT or CAMERA is not accepted")
             if not (estimated_ratio >= self.args.ratio_without_side_cam_offset_min and estimated_ratio <= self.args.ratio_without_side_cam_offset_max):
-                self.logger.error(f"Current {cam_name} Ratio : {estimated_ratio} does not lie in acceptable ratio.")
+                self.logger.error(f"Current {cam_name} Ratio : {estimated_ratio} does not lie in acceptable ratio. [{self.args.ratio_without_side_cam_offset_min} <= ratio <= {self.args.ratio_without_side_cam_offset_max}]")
                 self.logger.error(f"--- There is Error in Tilt of Camera Position ---")
             if not (estimated_csa >= self.args.csa_without_offset_min and estimated_csa <= self.args.csa_without_offset_max):
-                self.logger.error(f"Current {cam_name} Current Steering Angle : {estimated_csa} does not lie in acceptable steering angle")
+                self.logger.error(f"Current {cam_name} Current Steering Angle : {estimated_csa} does not lie in acceptable steering angle. [{self.args.csa_without_offset_min} <= csa <= {self.args.csa_without_offset_max}]")
                 self.logger.error(f"--- There is Error in Rotation of Camera Postition ---")
             sys.exit()
         
@@ -353,7 +362,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         ####### End of, Prompt the user regarding overwritting of current json file and instruct the user to take backup of current json file ###########
         
         ######### Instruct the user asking if the bot is palced in predefined postion, and whether to proceed for calibartion ##########
-        choice = input(f"{self.get_formatted_timestamp()} Enter y when BOT is positioned properly [predefined calibaration position] , n to exit : ")
+        choice = input(f"{self.get_formatted_timestamp()} Enter y when BOT is positioned properly [predefined calibration position] , n to exit : ")
         
         if choice == "y": pass
         if choice == "n": sys.exit()
@@ -371,10 +380,26 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                 # update the lane color to scan param and update it in json
                 self.current_json["CamParams"][0]["LaneColourToScan"] = int(updated_lane_color_to_scan)
                 json.dump(self.current_json,updated_json,indent = 4)
-            self.logger.info(f"-- Updated LaneColourToScan : self.current_json['CamParams'][0]['LaneColourToScan'] in json --")
+            self.logger.info(f"-- Updated LaneColourToScan : {self.current_json['CamParams'][0]['LaneColourToScan']} in json --")
         if lane_color_to_scan_choice == "y":
             pass
         ### End of , ask the user if the LaneColorToScan is set properly ###
+        
+        #### ask the user if the current path width in json file is set properly ####
+        self.logger.info(f"--- Current PathWidth : {self.current_json['DebugParams'][0]['PathWidth']} ---")
+        path_width_choice = input(f"{self.get_formatted_timestamp()} Enter y if PathWidth is set correct , n to update : ")
+        
+        if path_width_choice == "n":
+            # update the path width by taking user input
+            updated_path_width = int(input(f"{self.get_formatted_timestamp()} Enter PathWidth : "))
+            with open(self.args.json_path,"w") as updated_json:
+                self.current_json["DebugParams"][0]["PathWidth"] = updated_path_width
+                json.dump(self.current_json,updated_json,indent = 4)
+            self.logger.info(f"--- updated PathWidth : {self.current_json['DebugParams'][0]['PathWidth']} ---")
+        if path_width_choice == "y":
+            pass
+            
+        #### End of ask the user if the current path width in json file is set properly ####
         
         ############################### Camera Id Mapping ####################################################
         self.logger.info("========= Performing Camera Id Mapping =========")
