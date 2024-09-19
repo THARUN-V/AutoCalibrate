@@ -174,6 +174,20 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
             if ".mp4" in video_file:
                 if "Right" in video_file or "Left" in video_file:
                     
+                    # set the flag for changing camera to left or right in CameraStartUpJson 
+                    if "Right" in video_file:
+                        # set SelectCameraForOfflineMode to 1
+                        self.current_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 1
+                        # update in json before executing videoplayback build
+                        with open(self.args.json_path,"w") as updated_json:
+                            json.dump(self.current_json,updated_json,indent = 4)
+                    if "Left" in video_file:
+                        # set SelectCameraForOfflineMode to 2
+                        self.current_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 2
+                        # update in json before executing videoplayback build
+                        with open(self.args.json_path,"w") as updated_json:
+                            json.dump(self.current_json,updated_json,indent = 4)
+                            
                     # command to run videoplayback build
                     log_file = os.path.join(self.data_dir,video_file.split(".mp4")[0]+"Log.txt")
                     
@@ -187,13 +201,13 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     # cmd = f"{self.args.videoplayback_build} -i /home/tharun/THARUN/Data/TestVideos/TKAP_ORANGE_LANES/Left_Camera_Orange_Video_8_161223.mp4 -v > {log_file} 2>&1"yyy
                     if self.args.debug:
                         if os.path.exists(self.args.video_path):
-                            cmd = f"{self.args.videoplayback_build} --offline -i ./{self.args.video_path} -v > {log_file} 2>&1"
+                            cmd = f"{self.args.videoplayback_build} --offline -i {self.args.video_path} -v > {log_file} 2>&1"
                         else:
                             self.logger.error(f"!!! Video File {self.args.video_path} doesn't Exist !!!")
                     
                     # execute VideoPlayback with recorded video
                     else:
-                        cmd = f"{self.args.videoplayback_build} --offline -i ./{os.path.join(self.data_dir,video_file)} -v > {log_file} 2>&1"
+                        cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {log_file} 2>&1"
                     
                     # run the command
                     process = os.system(cmd)

@@ -9,7 +9,7 @@ class ParseParams:
         logging.basicConfig(format="[%(asctime)s, %(levelname)s] %(message)s", level=logging.INFO, datefmt="%d/%m/%y %H:%M:%S")
         self.logger = logging.getLogger()
         
-        parser = argparse.ArgumentParser(description = "Script to automate the calibration.",formatter_class=argparse.RawTextHelpFormatter)
+        parser = argparse.ArgumentParser(description = "Script to automate the calibration. \n ./AutoCalibrate --videoplayback_build ./VideoPlayback_ECON_vx.y.z",formatter_class=argparse.RawTextHelpFormatter)
         
         parser.add_argument("--json_path",default = "/home/pi/CameraStartUpJson.json",help = "path to json file for read,modify and updating the params. (default : /home/pi/CameraStartUpJson.json)")
         parser.add_argument("--n_cam",type = int ,default = 3,help = "number of cameras connected to bot (default : 3)")
