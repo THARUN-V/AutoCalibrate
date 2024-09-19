@@ -325,10 +325,17 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         
         ########## Prompt the user regarding overwritting of current json file and instruct the user to take backup of current json file ################
         self.logger.info("**** This Script overwrites the current json file for updating params , Take backup of current json file before proceeding if needed ****")
-        choice = input(f"{self.get_formatted_timestamp()} Enter y,to proceed , n to exit : ")
+        # choice = input(f"{self.get_formatted_timestamp()} Enter y,to proceed , n to exit : ")
+        bkp_choice = input(f"{self.get_formatted_timestamp()} Enter y to take backup , n to skip : ")
         
-        if choice == "n": exit()
-        if choice == "y": pass
+        if bkp_choice == "y":
+            # create a bkp of current json file
+            bkp_json_path = f'CameraStartUpJson_bkp_{datetime.now().strftime("%d-%m-%y_%H-%M-%S")}.json' 
+            with open(bkp_json_path,"w") as bkp_json:
+                json.dump(self.current_json,bkp_json,indent = 4)
+            self.logger.info(f"Successfully backed up current json at {bkp_json_path}")
+        if bkp_choice == "n":
+            pass
         ####### End of, Prompt the user regarding overwritting of current json file and instruct the user to take backup of current json file ###########
         
         ######### Instruct the user to place the markers before proceeding for camera id mapping ##########
