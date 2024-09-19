@@ -25,7 +25,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         # check if all the required params are provided from cli
         # else print the appropriate log and exit.
         if not self.check_params():
-            exit()    
+            sys.exit()    
             
         # load the current json file
         with open(self.args.json_path,"r") as f:
@@ -37,12 +37,12 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         # if no cameras found exit with error message
         if self.see_cams == None:
             self.logger.error("!!! No Cameras Found !!!")
-            exit()
+            sys.exit()
         
         # check if the scanned and provided number of cameras match
         if len(self.see_cams) != self.args.n_cam:
             self.logger.error(f"Found {len(self.see_cams)} cameras out of {self.args.n_cam}")
-            exit()
+            sys.exit()
             
         self.cam_name_and_index = {
             "FrontCam":None,
@@ -84,7 +84,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
             
             if len(id) > 1:
                 self.logger.error(f"more than 1 marker detected")
-                exit()
+                sys.exit()
             else:
                 return id[0]
         
@@ -187,13 +187,13 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     # cmd = f"{self.args.videoplayback_build} -i /home/tharun/THARUN/Data/TestVideos/TKAP_ORANGE_LANES/Left_Camera_Orange_Video_8_161223.mp4 -v > {log_file} 2>&1"yyy
                     if self.args.debug:
                         if os.path.exists(self.args.video_path):
-                            cmd = f"{self.args.videoplayback_build} -i {self.args.video_path} -v > {log_file} 2>&1"
+                            cmd = f"{self.args.videoplayback_build} --offline -i ./{self.args.video_path} -v > {log_file} 2>&1"
                         else:
                             self.logger.error(f"!!! Video File {self.args.video_path} doesn't Exist !!!")
                     
                     # execute VideoPlayback with recorded video
                     else:
-                        cmd = f"{self.args.videoplayback_build} -i {os.path.join(self.data_dir,video_file)} -v > {log_file} 2>&1"
+                        cmd = f"{self.args.videoplayback_build} --offline -i ./{os.path.join(self.data_dir,video_file)} -v > {log_file} 2>&1"
                     
                     # run the command
                     process = os.system(cmd)
@@ -206,8 +206,8 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     else:
                         self.progress_done.set()
                         progress_thread.join()
-                        self.logger.error(f"!!!! Error in Executing VideoPlayback Build with current Video file !!!!")
-                        exit()
+                        self.logger.error(f"!!!! Error in Executing VideoPlayback Build with current {video_file} file !!!!")
+                        sys.exit()
     
     def get_ratio_csa_from_log_file(self,log_file_path):
         """
@@ -237,7 +237,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         
         if cam_name == None:
             self.logger.error(f"!!!!! No came name provided for estimate offset method !!!!!!")
-            exit()
+            sys.exit()
         
         if cam_name == "right":
             return int(self.current_json["DebugParams"][0]["PathWidth"] * (self.args.target_ratio - measured_ratio)) , int(self.args.target_steering_angle - measured_steering_angle)
@@ -282,7 +282,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
             if not (estimated_csa >= self.args.csa_without_offset_min and estimated_csa <= self.args.csa_without_offset_max):
                 self.logger.error(f"Current {cam_name} Current Steering Angle : {estimated_csa} does not lie in acceptable steering angle")
                 self.logger.error(f"--- There is Error in Rotation of Camera Postition ---")
-            exit()
+            sys.exit()
         
     def get_formatted_timestamp(self):
         """
@@ -338,16 +338,29 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
             pass
         ####### End of, Prompt the user regarding overwritting of current json file and instruct the user to take backup of current json file ###########
         
-        ######### Instruct the user to place the markers before proceeding for camera id mapping ##########
-        self.logger.info("*** Place the Marker in front of cam before proceeding for camera id mapping ***")
-        self.logger.info("*** follow the sequence of markers to be placed in front of camera ***")
-        self.logger.info(f"*** [ FrontCameraId : {self.args.front_cam_marker_id} | RightCameraId : {self.args.right_cam_marker_id} | LeftCameraId : {self.args.left_cam_marker_id} ] ***")
-        
-        choice = input(f"{self.get_formatted_timestamp()} Enter y when markers are placed in front of camera's , n to exit : ")
+        ######### Instruct the user asking if the bot is palced in predefined postion, and whether to proceed for calibartion ##########
+        choice = input(f"{self.get_formatted_timestamp()} Enter y when BOT is positioned properly [predefined calibaration position] , n to exit : ")
         
         if choice == "y": pass
-        if choice == "n": exit()
-        ##### End of, Instruct the user to place the markers before proceeding for camera id mapping ######
+        if choice == "n": sys.exit()
+        ##### End of, Instruct the user asking if the bot is palced in predefined postion, and whether to proceed for calibartion ######
+        
+        
+        ##### ask the user if the LaneColorToScan is set properly #####
+        self.logger.info(f"--- Current LaneColorToScan : {self.current_json['CamParams'][0]['LaneColourToScan']} ---")
+        lane_color_to_scan_choice = input(f"{self.get_formatted_timestamp()} Enter y if LaneColourToScan is set correct , n to update : ")
+        
+        if lane_color_to_scan_choice == "n":
+            # update the lane color to scan 
+            updated_lane_color_to_scan = input(f"{self.get_formatted_timestamp()} Enter LaneColourToScan : ")
+            with open(self.args.json_path,"w") as updated_json:
+                # update the lane color to scan param and update it in json
+                self.current_json["CamParams"][0]["LaneColourToScan"] = int(updated_lane_color_to_scan)
+                json.dump(self.current_json,updated_json,indent = 4)
+            self.logger.info(f"-- Updated LaneColourToScan : self.current_json['CamParams'][0]['LaneColourToScan'] in json --")
+        if lane_color_to_scan_choice == "y":
+            pass
+        ### End of , ask the user if the LaneColorToScan is set properly ###
         
         ############################### Camera Id Mapping ####################################################
         self.logger.info("========= Performing Camera Id Mapping =========")
@@ -361,15 +374,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
             json.dump(self.current_json,updated_json,indent = 4)
         self.logger.info("Updated mapped Camera Id's in Json")
         ############################### End of Camera Id Mapping ##############################################
-        
-        ####### Instruct the user to remove markers before recording video for offset estimation ######
-        self.logger.info("*** Remove the Markers Before Recording Video for offset estimation ***")
-        choice = input(f"{self.get_formatted_timestamp()} Enter y when markers are removed , n to exit : ")
-        
-        if choice == "y": pass
-        if choice == "n": exit()
-        #### End of Instruct the user to remove markers before recording video for offset estimation ##
-        
+                
         ### Record video of Front,Left and Right for debug and estimating offsets #########
         self.record_video()
         ###  End Record video of Front,Left and Right for debug and estimating offsets ####
