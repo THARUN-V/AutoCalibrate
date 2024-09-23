@@ -12,7 +12,7 @@ class CameraWriter:
         self.width = width
         self.height = height
         self.fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        self.fps = 30
+        self.fps = 10
         
         self.front_cam_writer = cv2.VideoWriter(os.path.join(self.video_path,"FrontCam.mp4"),
                                                 self.fourcc,

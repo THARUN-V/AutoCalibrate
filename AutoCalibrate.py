@@ -92,8 +92,12 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         for cam in self.see_cams:
             # get the current cam index , fetch frame and detect marker
             cap = cv2.VideoCapture(cam.camera_index)
+            
             cap.set(cv2.CAP_PROP_FRAME_WIDTH,self.w)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT,self.h)
+            
+            print(f"cap_w : {cap.get(cv2.CAP_PROP_FRAME_WIDTH)}")
+            print(f"cap_H : {cap.get(cv2.CAP_PROP_FRAME_HEIGHT)}")
             
             # flag to check if id is detected for current cam
             id_detected = False
@@ -102,7 +106,11 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                 
                 ret , frame = cap.read()
                 
+                print(f"cap_width : {cap.get(cv2.CAP_PROP_FRAME_WIDTH)}")
+                print(f"cap_height : {cap.get(cv2.CAP_PROP_FRAME_HEIGHT)}")
+                
                 if ret:
+                    cv2.imwrite("test_auto_calib.png",frame)
                     # detect the marker in current camera
                     _ , ids , _ , _ = self.get_marker_id(frame)
                     if ids != None:
@@ -142,6 +150,8 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
             cap = cv2.VideoCapture(cam_index)
             cap.set(cv2.CAP_PROP_FRAME_WIDTH,self.w)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT,self.h)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE,1)
+            cap.set(cv2.CAP_PROP_FPS,15)
             
             while self.current_frame_count <= self.args.record_frame_count:
                 ret , frame = cap.read()
@@ -216,6 +226,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     
                     # execute VideoPlayback with recorded video
                     else:
+                        print(f"--- current SelectCameraForOfflineMode : {self.current_json['DebugParams'][0]['SelectCameraForOfflineMode' ]}")
                         cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {log_file} 2>&1"
                     
                     # run the command
