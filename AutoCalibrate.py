@@ -96,18 +96,12 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
             cap.set(cv2.CAP_PROP_FRAME_WIDTH,self.w)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT,self.h)
             
-            print(f"cap_w : {cap.get(cv2.CAP_PROP_FRAME_WIDTH)}")
-            print(f"cap_H : {cap.get(cv2.CAP_PROP_FRAME_HEIGHT)}")
-            
             # flag to check if id is detected for current cam
             id_detected = False
             
             while not id_detected:
                 
                 ret , frame = cap.read()
-                
-                print(f"cap_width : {cap.get(cv2.CAP_PROP_FRAME_WIDTH)}")
-                print(f"cap_height : {cap.get(cv2.CAP_PROP_FRAME_HEIGHT)}")
                 
                 if ret:
                     cv2.imwrite("test_auto_calib.png",frame)
@@ -378,39 +372,6 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         if choice == "y": pass
         if choice == "n": sys.exit()
         ##### End of, Instruct the user asking if the bot is palced in predefined postion, and whether to proceed for calibartion ######
-        
-        
-        ##### ask the user if the LaneColorToScan is set properly #####
-        self.logger.info(f"--- Current LaneColorToScan : {self.current_json['CamParams'][0]['LaneColourToScan']} ---")
-        lane_color_to_scan_choice = input(f"{self.get_formatted_timestamp()} Enter y if LaneColourToScan is set correct , n to update : ")
-        
-        if lane_color_to_scan_choice == "n":
-            # update the lane color to scan 
-            updated_lane_color_to_scan = input(f"{self.get_formatted_timestamp()} Enter LaneColourToScan : ")
-            with open(self.args.json_path,"w") as updated_json:
-                # update the lane color to scan param and update it in json
-                self.current_json["CamParams"][0]["LaneColourToScan"] = int(updated_lane_color_to_scan)
-                json.dump(self.current_json,updated_json,indent = 4)
-            self.logger.info(f"-- Updated LaneColourToScan : {self.current_json['CamParams'][0]['LaneColourToScan']} in json --")
-        if lane_color_to_scan_choice == "y":
-            pass
-        ### End of , ask the user if the LaneColorToScan is set properly ###
-        
-        #### ask the user if the current path width in json file is set properly ####
-        self.logger.info(f"--- Current PathWidth : {self.current_json['DebugParams'][0]['PathWidth']} ---")
-        path_width_choice = input(f"{self.get_formatted_timestamp()} Enter y if PathWidth is set correct , n to update : ")
-        
-        if path_width_choice == "n":
-            # update the path width by taking user input
-            updated_path_width = int(input(f"{self.get_formatted_timestamp()} Enter PathWidth : "))
-            with open(self.args.json_path,"w") as updated_json:
-                self.current_json["DebugParams"][0]["PathWidth"] = updated_path_width
-                json.dump(self.current_json,updated_json,indent = 4)
-            self.logger.info(f"--- updated PathWidth : {self.current_json['DebugParams'][0]['PathWidth']} ---")
-        if path_width_choice == "y":
-            pass
-            
-        #### End of ask the user if the current path width in json file is set properly ####
         
         ############################### Camera Id Mapping ####################################################
         self.logger.info("========= Performing Camera Id Mapping =========")
