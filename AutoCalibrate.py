@@ -95,6 +95,9 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
             
             cap.set(cv2.CAP_PROP_FRAME_WIDTH,self.w)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT,self.h)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE,1)
+            cap.set(cv2.CAP_PROP_FPS,15)
+            
             
             # flag to check if id is detected for current cam
             id_detected = False
@@ -184,58 +187,62 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         # iterater over the video file and generate log 
         for video_file in os.listdir(self.data_dir):
             self.progress_done.clear()
-            if ".mp4" in video_file:
-                if "Right" in video_file or "Left" in video_file:
-                    
-                    # set the flag for changing camera to left or right in CameraStartUpJson 
-                    if "Right" in video_file:
-                        # set SelectCameraForOfflineMode to 1
-                        self.current_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 1
-                        # update in json before executing videoplayback build
-                        with open(self.args.json_path,"w") as updated_json:
-                            json.dump(self.current_json,updated_json,indent = 4)
-                    if "Left" in video_file:
-                        # set SelectCameraForOfflineMode to 2
-                        self.current_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 2
-                        # update in json before executing videoplayback build
-                        with open(self.args.json_path,"w") as updated_json:
-                            json.dump(self.current_json,updated_json,indent = 4)
-                            
-                    # command to run videoplayback build
-                    log_file = os.path.join(self.data_dir,video_file.split(".mp4")[0]+"Log.txt")
-                    
-                    # Start the progress indicator thread
-                    self.progress_msg = f"{self.get_formatted_timestamp()} Executing VideoPlayback build [{self.build_name}] with {video_file}"
-                    progress_thread = threading.Thread(target = self.print_progress)
-                    progress_thread.start()
-                    
-                    ### for debug ###
-                    # print(f"VideoName : {os.path.join(self.data_dir,video_file)}")
-                    # cmd = f"{self.args.videoplayback_build} -i /home/tharun/THARUN/Data/TestVideos/TKAP_ORANGE_LANES/Left_Camera_Orange_Video_8_161223.mp4 -v > {log_file} 2>&1"yyy
-                    if self.args.debug:
-                        if os.path.exists(self.args.video_path):
-                            cmd = f"{self.args.videoplayback_build} --offline -i {self.args.video_path} -v > {log_file} 2>&1"
-                        else:
-                            self.logger.error(f"!!! Video File {self.args.video_path} doesn't Exist !!!")
-                    
-                    # execute VideoPlayback with recorded video
+            if ".mp4" in video_file:    
+                # set the flag for changing camera to left or right in CameraStartUpJson 
+                if "Right" in video_file:
+                    # set SelectCameraForOfflineMode to 1
+                    self.current_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 1
+                    # update in json before executing videoplayback build
+                    with open(self.args.json_path,"w") as updated_json:
+                        json.dump(self.current_json,updated_json,indent = 4)
+                if "Left" in video_file:
+                    # set SelectCameraForOfflineMode to 2
+                    self.current_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 2
+                    # update in json before executing videoplayback build
+                    with open(self.args.json_path,"w") as updated_json:
+                        json.dump(self.current_json,updated_json,indent = 4)
+                        
+                if "Front" in video_file:
+                    # set SelectCameraForOfflineMode to 0
+                    self.current_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 0
+                    # update in json before executing videoplayback build
+                    with open(self.args.json_path,"w") as updated_json:
+                        json.dump(self.current_json,updated_json,indent = 4)
+                        
+                # command to run videoplayback build
+                log_file = os.path.join(self.data_dir,video_file.split(".mp4")[0]+"Log.txt")
+                
+                # Start the progress indicator thread
+                self.progress_msg = f"{self.get_formatted_timestamp()} Executing VideoPlayback build [{self.build_name}] with {video_file}"
+                progress_thread = threading.Thread(target = self.print_progress)
+                progress_thread.start()
+                
+                ### for debug ###
+                # print(f"VideoName : {os.path.join(self.data_dir,video_file)}")
+                # cmd = f"{self.args.videoplayback_build} -i /home/tharun/THARUN/Data/TestVideos/TKAP_ORANGE_LANES/Left_Camera_Orange_Video_8_161223.mp4 -v > {log_file} 2>&1"yyy
+                if self.args.debug:
+                    if os.path.exists(self.args.video_path):
+                        cmd = f"{self.args.videoplayback_build} --offline -i {self.args.video_path} -v > {log_file} 2>&1"
                     else:
-                        print(f"--- current SelectCameraForOfflineMode : {self.current_json['DebugParams'][0]['SelectCameraForOfflineMode' ]}")
-                        cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {log_file} 2>&1"
-                    
-                    # run the command
-                    process = os.system(cmd)
-                    
-                    # check if the process has executed and terminated successfully
-                    if process == 0:
-                        self.progress_done.set()
-                        progress_thread.join()
-                        # self.logger.info(f"Done with {os.path.join(self.data_dir,video_file)}")
-                    else:
-                        self.progress_done.set()
-                        progress_thread.join()
-                        self.logger.error(f"!!!! Error in Executing VideoPlayback Build with current {video_file} file !!!!")
-                        sys.exit()
+                        self.logger.error(f"!!! Video File {self.args.video_path} doesn't Exist !!!")
+                
+                # execute VideoPlayback with recorded video
+                else:
+                    cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {log_file} 2>&1"
+                
+                # run the command
+                process = os.system(cmd)
+                
+                # check if the process has executed and terminated successfully
+                if process == 0:
+                    self.progress_done.set()
+                    progress_thread.join()
+                    # self.logger.info(f"Done with {os.path.join(self.data_dir,video_file)}")
+                else:
+                    self.progress_done.set()
+                    progress_thread.join()
+                    self.logger.error(f"!!!! Error in Executing VideoPlayback Build with current {video_file} file !!!!")
+                    sys.exit()
     
     def get_ratio_csa_from_log_file(self,log_file_path):
         """
