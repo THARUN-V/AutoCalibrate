@@ -75,13 +75,6 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         # videoplayback build name to pring in cli
         self.build_name = self.args.videoplayback_build if len(self.args.videoplayback_build.split("/")) == 1 else self.args.videoplayback_build.split("/")[-1]
         
-        # self.table = PrettyTable()
-        # self.table.field_names = ["CamName","CamId","RatioWithoutOffset","RatioWithOffset","CsaWithoutOffset","CsaWithOffset","RatioOffset","SteeringAngleOffset","ResultCamTilt","ResultCamRotate"]
-        # # self.table.add_row(["","","WithoutOffset","WithOffset","WithoutOffset","WithOffset","",""])
-        
-        # self.FrontCamRow = ["FrontCam","","","","","","","","",""]
-        # self.RightCamRow = ["RightCam","","","","","","","","",""]
-        # self.LeftCamRow  = ["LeftCam","","","","","","","","",""]
             
     def color_text(self,text, color):
         # Define ANSI escape codes
@@ -103,15 +96,6 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         
         # check for pass or fail based on ratio and steering angle, without offsets
         ########## RIGHT CAMERA ##############
-        # if not (self.RightCamRow[2] >= self.args.ratio_without_side_cam_offset_min and self.RightCamRow[2] <= self.args.ratio_without_side_cam_offset_max):
-        #     self.RightCamRow[8] = self.color_text("FAIL","red")
-        # else:
-        #     self.RightCamRow[8] = self.color_text("PASS","green")
-        # if not (self.RightCamRow[4] >= self.args.csa_without_offset_min and self.RightCamRow[4] <= self.args.csa_without_offset_max):
-        #     self.RightCamRow[9] = self.color_text("FAIL","red")
-        # else:
-        #     self.RightCamRow[9] = self.color_text("PASS","green")
-        
         if not (self.RightCamRow[self.RATIO_WITHOUT_OFFSET_IDX] >= self.args.ratio_without_side_cam_offset_min and self.RightCamRow[self.RATIO_WITHOUT_OFFSET_IDX] <= self.args.ratio_without_side_cam_offset_max):
             self.RightCamRow[self.RESULT_CAM_TILT_IDX] = self.color_text("FAIL","red")
         else:
@@ -124,15 +108,6 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         ######################################
         
         ########### LEFT CAMERA ######################
-        # if not(self.LeftCamRow[2] >= self.args.ratio_without_side_cam_offset_min and self.RightCamRow[2] <= self.args.ratio_without_side_cam_offset_max):
-        #     self.LeftCamRow[8] = self.color_text("FAIL","red")
-        # else:
-        #     self.LeftCamRow[8] = self.color_text("PASS","green")
-        # if not(self.LeftCamRow[4] >= self.args.csa_without_offset_min and self.LeftCamRow[4] <= self.args.csa_without_offset_max):
-        #     self.LeftCamRow[9] = self.color_text("FAIL","red")
-        # else:
-        #     self.LeftCamRow[9] = self.color_text("PASS","green")
-        
         if not(self.LeftCamRow[self.RATIO_WITHOUT_OFFSET_IDX] >= self.args.ratio_without_side_cam_offset_min and self.RightCamRow[2] <= self.args.ratio_without_side_cam_offset_max):
             self.LeftCamRow[self.RESULT_CAM_TILT_IDX] = self.color_text("FAIL","red")
         else:
@@ -144,15 +119,6 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         ##############################################
         
         ############# FRONT CAM #########################
-        # if not(self.FrontCamRow[2] >= self.args.ratio_without_side_cam_offset_min and self.FrontCamRow[2] <= self.args.ratio_without_side_cam_offset_max):
-        #     self.FrontCamRow[8] = self.color_text("FAIL","red")
-        # else:
-        #     self.FrontCamRow[8] = self.color_text("PASS","green")
-        # if not(self.FrontCamRow[4] >= self.args.csa_without_offset_min and self.FrontCamRow[4] <= self.args.csa_without_offset_max):
-        #     self.FrontCamRow[9] = self.color_text("FAIL","red")
-        # else:
-        #     self.FrontCamRow[9] = self.color_text("PASS","green")
-        
         if not(self.FrontCamRow[self.RATIO_WITHOUT_OFFSET_IDX] >= self.args.ratio_without_side_cam_offset_min and self.FrontCamRow[self.RATIO_WITHOUT_OFFSET_IDX] <= self.args.ratio_without_side_cam_offset_max):
             self.FrontCamRow[self.RESULT_CAM_TILT_IDX] = self.color_text("FAIL","red")
         else:
@@ -162,11 +128,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         else:
             self.FrontCamRow[self.RESULT_CAM_ROTATE_IDX] = self.color_text("PASS","green")
         #################################################
-        
-        # self.table.add_row(self.FrontCamRow)
-        # self.table.add_row(self.RightCamRow)
-        # self.table.add_row(self.LeftCamRow)
-        
+
         self.update_table()
             
     def detect_and_map_cam_ids(self):

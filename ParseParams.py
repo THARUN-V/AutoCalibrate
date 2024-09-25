@@ -70,17 +70,5 @@ class ParseParams:
             self.logger.error("path to VideoPlayback build is not provided")
             return False
         
-        # if self.args.debug :
-        #     if self.args.video_path == None:
-        #         self.logger.error("please provide the video path with --video_path <path_to_video_file> to run in --debug mode")
-        #         return False
-        #     if not os.path.exists(self.args.video_path):
-        #         self.logger.error(f"!!! Video Path {self.args.video_path} doesn't exists !!!")
-        #         return False
-        #     if not ".mp4" in self.args.video_path:
-        #         self.logger.error(f"!!! {self.args.video_path} is not a video file !!!")
-        #         return False
-        # return True
-        
         if self.args.debug:
             return True
