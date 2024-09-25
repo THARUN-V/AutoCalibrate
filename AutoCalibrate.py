@@ -1,8 +1,8 @@
-from ParseParams import *
 from CamContext import CamContext
 from CamCapture import CameraCapture
 from MarkerDetector import ArucoMarkerDetector
 from CamWriter import CameraWriter
+from ParseParams import *
 import json
 import logging
 import cv2
@@ -13,6 +13,7 @@ import sys
 import threading
 import time
 from prettytable import PrettyTable
+import shutil
 
 class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
     
@@ -287,18 +288,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                 progress_thread = threading.Thread(target = self.print_progress)
                 progress_thread.start()
                 
-                ### for debug ###
-                # print(f"VideoName : {os.path.join(self.data_dir,video_file)}")
-                # cmd = f"{self.args.videoplayback_build} -i /home/tharun/THARUN/Data/TestVideos/TKAP_ORANGE_LANES/Left_Camera_Orange_Video_8_161223.mp4 -v > {log_file} 2>&1"yyy
-                if self.args.debug:
-                    if os.path.exists(self.args.video_path):
-                        cmd = f"{self.args.videoplayback_build} --offline -i {self.args.video_path} -v > {log_file} 2>&1"
-                    else:
-                        self.logger.error(f"!!! Video File {self.args.video_path} doesn't Exist !!!")
-                
-                # execute VideoPlayback with recorded video
-                else:
-                    cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {log_file} 2>&1"
+                cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {log_file} 2>&1"
                 
                 # run the command
                 process = os.system(cmd)
@@ -313,6 +303,80 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     progress_thread.join()
                     self.logger.error(f"!!!! Error in Executing VideoPlayback Build with current {video_file} file !!!!")
                     sys.exit()
+                    
+    def estimate_ratio_csa_with_offset(self):
+        ## get left and right camera offset ###
+        with open(self.args.json_path,"r") as json_file:
+            updated_json = json.load(json_file)
+            
+        # ### estimate right camera ratio using rightSideCameraOffset ####
+        # if updated_json["CamParams"][0]["rightSideCameraOffset"] != 0:
+        #     ## execute videoplayback build with rightSideCameraOffset
+        #     process = os.system(self.cmd)
+        # else:
+        #     self.logger.info("------ rightSideCameraOffset after estimating offset --------")
+        #     self.logger.error(f"rightSideCameraOffset : {updated_json["CamParams"][0]["rightSideCameraOffset"]}")
+        # ################################################################
+        
+        for video_file in os.listdir(self.data_dir):
+            if ".mp4" in video_file:
+                if "Right" in video_file:
+                    ####### run videoplayback build and generate log to get ratio and csa ########
+                    if updated_json["CamParams"][0]["rightSideCameraOffset"] != 0:
+                        # change camera to right in json
+                        updated_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 1
+                        with open(self.args.json_path,"w") as right_cam_json:
+                            json.dump(updated_json,right_cam_json,indent = 4)
+                        
+                        self.right_cam_log_file_with_offset = "RightCamLogWithOffset.txt"
+                        cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {self.right_cam_log_file_with_offset} 2>&1"
+                        process = os.system(cmd)
+                        if process != 0:
+                            self.logger.error(f"!!! Error in Executing {self.videoplayback_build} with {video_file} !!!")
+                    else:
+                        self.logger.info("------ rightSideCameraOffset after estimating offset --------")
+                        self.logger.error(f"rightSideCameraOffset : {updated_json['CamParams'][0]['rightSideCameraOffset']}")
+                        
+                    ####### parse log file and get ratio and csa with offsets ##########
+                    if os.path.exists(self.right_cam_log_file_with_offset):
+                        right_cam_ratio_with_offset , right_cam_csa_with_offset = self.get_ratio_csa_from_log_file(self.right_cam_log_file_with_offset)
+                        # update this in pretty table
+                        self.RightCamRow[3] = round(right_cam_ratio_with_offset,2)
+                        self.RightCamRow[5] = round(right_cam_csa_with_offset,2)
+                    else:
+                        self.logger.error(f"!!! log file with offset : {self.right_cam_log_file_with_offset} doesn't exist !!!")
+                        
+                if "Left" in video_file:
+                    ####### run videoplayback build and generate log to get ratio and csa ########
+                    if updated_json["CamParams"][0]["leftSideCameraOffset"] != 0:
+                        # change camera to right in json
+                        updated_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 2
+                        with open(self.args.json_path,"w") as left_cam_json:
+                            json.dump(updated_json,left_cam_json,indent = 4)
+                            
+                        self.left_cam_log_file_with_offset = "LeftCamLogWithOffset.txt"
+                        cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {self.left_cam_log_file_with_offset} 2>&1"
+                        process = os.system(cmd)
+                        if process != 0:
+                            self.logger.error(f"!!! Error in Executing {self.videoplayback_build} with {video_file} !!!")
+                    else:
+                        self.logger.info("------ leftSideCameraOffset after estimating offset --------")
+                        self.logger.error(f"leftSideCameraOffset : {updated_json['CamParams'][0]['leftSideCameraOffset']}")
+                        
+                    ####### parse log file and get ratio and csa with offsets ##########
+                    if os.path.exists(self.left_cam_log_file_with_offset):
+                        left_cam_ratio_with_offset , left_cam_csa_with_offset = self.get_ratio_csa_from_log_file(self.left_cam_log_file_with_offset)
+                        # update this in pretty table
+                        self.LeftCamRow[3] = round(left_cam_ratio_with_offset,2)
+                        self.LeftCamRow[5] = round(left_cam_csa_with_offset,2)
+                    else:
+                        self.logger.error(f"!!! log file with offset : {self.left_cam_log_file_with_offset} doesn't exist !!!")
+                if "Front" in video_file:
+                    # change camera to right in json
+                    updated_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 0
+                    with open(self.args.json_path,"w") as front_cam_json:
+                        json.dump(updated_json,front_cam_json,indent = 4)
+                    pass
     
     def get_ratio_csa_from_log_file(self,log_file_path):
         """
@@ -441,10 +505,19 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         self.logger.info("Updated mapped Camera Id's in Json")
         ############################### End of Camera Id Mapping ##############################################
                 
-                
         ### Record video of Front,Left and Right for debug and estimating offsets #########
         self.record_video()
         ###  End Record video of Front,Left and Right for debug and estimating offsets ####
+        
+        #### in debug mode ####
+        if self.args.debug:
+            src_dir = "/home/pi/auto_calib_debug_data/"
+            dest_dir = self.data_dir
+            # shutil.copy(src_dir,dest_dir)
+            if os.path.exists(dest_dir):
+                os.system(f"sudo rm -rf {dest_dir}")
+            os.system(f"sudo cp -r {src_dir} {dest_dir}")
+        #######################
         
         ########################### side camera offset estimation ######################################################
         
@@ -511,6 +584,9 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     self.FrontCamRow[4] = round(front_csa_mean,2)
                     
                     self.logger.info(f"front_ratio_mean : {front_estimated_ratio_mean} | front_csa_mean : {front_csa_mean}")
+                    
+        #estimate ratio and csa using the updated offsets
+        self.estimate_ratio_csa_with_offset()
                     
         self.print_pretty_table()
                 

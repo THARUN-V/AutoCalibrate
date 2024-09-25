@@ -28,6 +28,12 @@ class ParseParams:
         parser.add_argument("--ratio_without_side_cam_offset_max",type = float,default = 0.53,help = "max ratio to accept without side camera offset. (default : 0.53)")
         parser.add_argument("--csa_without_offset_min",type = float,default = 87,help = "min current steering angle to accept without sterring angle offset. (default : 87)")
         parser.add_argument("--csa_without_offset_max",type = float,default = 93,help = "max current steering angle to accept without sterring angle offset. (default : 93)")
+        
+        parser.add_argument("--ratio_with_side_cam_offset_min",type = float,default = 0.495,help = "min ratio to accept with side camera offset. (default : 0.495)")
+        parser.add_argument("--ratio_with_side_cam_offset_max",type = float,default = 0.505,help = "max ratio to accept with side camera offset. (default : 0.505)")
+        parser.add_argument("--csa_with_offset_min",type = float,default = 89.5,help = "min current steering angle to accept with sterring angle offset. (default : 89.5)")
+        parser.add_argument("--csa_with_offset_max",type = float,default = 90.5,help = "max current steering angle to accept with sterring angle offset. (default : 90.5)")
+        
         parser.add_argument("--target_ratio",type = float,default = 0.50,help = "target ratio to substiute in equation of side camera offsets. (default : 0.50)")
         parser.add_argument("--target_steering_angle",type = float,default=90.0,help = "targe steering angle. (default : 90.0)")
         
@@ -64,14 +70,17 @@ class ParseParams:
             self.logger.error("path to VideoPlayback build is not provided")
             return False
         
-        if self.args.debug :
-            if self.args.video_path == None:
-                self.logger.error("please provide the video path with --video_path <path_to_video_file> to run in --debug mode")
-                return False
-            if not os.path.exists(self.args.video_path):
-                self.logger.error(f"!!! Video Path {self.args.video_path} doesn't exists !!!")
-                return False
-            if not ".mp4" in self.args.video_path:
-                self.logger.error(f"!!! {self.args.video_path} is not a video file !!!")
-                return False
-        return True
+        # if self.args.debug :
+        #     if self.args.video_path == None:
+        #         self.logger.error("please provide the video path with --video_path <path_to_video_file> to run in --debug mode")
+        #         return False
+        #     if not os.path.exists(self.args.video_path):
+        #         self.logger.error(f"!!! Video Path {self.args.video_path} doesn't exists !!!")
+        #         return False
+        #     if not ".mp4" in self.args.video_path:
+        #         self.logger.error(f"!!! {self.args.video_path} is not a video file !!!")
+        #         return False
+        # return True
+        
+        if self.args.debug:
+            return True
