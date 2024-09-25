@@ -308,16 +308,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         ## get left and right camera offset ###
         with open(self.args.json_path,"r") as json_file:
             updated_json = json.load(json_file)
-            
-        # ### estimate right camera ratio using rightSideCameraOffset ####
-        # if updated_json["CamParams"][0]["rightSideCameraOffset"] != 0:
-        #     ## execute videoplayback build with rightSideCameraOffset
-        #     process = os.system(self.cmd)
-        # else:
-        #     self.logger.info("------ rightSideCameraOffset after estimating offset --------")
-        #     self.logger.error(f"rightSideCameraOffset : {updated_json["CamParams"][0]["rightSideCameraOffset"]}")
-        # ################################################################
-        
+                    
         for video_file in os.listdir(self.data_dir):
             if ".mp4" in video_file:
                 if "Right" in video_file:
@@ -376,7 +367,21 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     updated_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 0
                     with open(self.args.json_path,"w") as front_cam_json:
                         json.dump(updated_json,front_cam_json,indent = 4)
-                    pass
+                    
+                    self.front_cam_log_file_with_offset = "FrontCamLogWithOffset.txt"
+                    cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {self.front_cam_log_file_with_offset} 2>&1"
+                    process = os.system(cmd)
+                    if process != 0:
+                        self.logger.error(f"!!! Error in Executing {self.videoplayback_build} with {video_file} !!!")
+                    ####### parse log file and get ratio and csa with offsets ##########
+                    if os.path.exists(self.front_cam_log_file_with_offset):
+                        front_cam_ratio_with_offset , front_cam_csa_with_offset = self.get_ratio_csa_from_log_file(self.front_cam_log_file_with_offset)
+                        # update this in pretty table
+                        self.FrontCamRow[3] = round(front_cam_ratio_with_offset,2)
+                        self.FrontCamRow[5] = round(front_cam_csa_with_offset,2)
+                    else:
+                        self.logger.error(f"!!! log file with offset : {self.left_cam_log_file_with_offset} doesn't exist !!!")
+                        
     
     def get_ratio_csa_from_log_file(self,log_file_path):
         """
@@ -412,7 +417,10 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
             return int(self.current_json["DebugParams"][0]["PathWidth"] * (self.args.target_ratio - measured_ratio)) , int(self.args.target_steering_angle - measured_steering_angle)
         
         if cam_name == "left":
-            return int(self.current_json["DebugParams"][0]["PathWidth"] * (1 - measured_ratio - self.args.target_ratio)) , int(self.args.target_steering_angle - measured_steering_angle)
+            return abs(int(self.current_json["DebugParams"][0]["PathWidth"] * (1 - measured_ratio - self.args.target_ratio))) , int(self.args.target_steering_angle - measured_steering_angle)
+        
+        if cam_name == "front":
+            return None , int(self.args.target_steering_angle - measured_steering_angle)
         
     def check_and_update_estimated_offset(self,estimated_ratio,estimated_csa,cam_name = None):
         """
@@ -430,6 +438,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         
         if cam_name == "right": self.RightCamRow[6] = Estimated_SideCameraOffset ; self.RightCamRow[7] = Estimated_SideCameraSteeringOffset
         if cam_name == "left" : self.LeftCamRow[6] = Estimated_SideCameraOffset ; self.LeftCamRow[7] = Estimated_SideCameraSteeringOffset
+        if cam_name == "front" : self.FrontCamRow[6] = "-" ; self.FrontCamRow[7] = Estimated_SideCameraSteeringOffset
         
     def get_formatted_timestamp(self):
         """
@@ -584,6 +593,8 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     self.FrontCamRow[4] = round(front_csa_mean,2)
                     
                     self.logger.info(f"front_ratio_mean : {front_estimated_ratio_mean} | front_csa_mean : {front_csa_mean}")
+                    
+                    self.check_and_update_estimated_offset(cam_name = "front",estimated_ratio = front_estimated_ratio_mean , estimated_csa = front_csa_mean)
                     
         #estimate ratio and csa using the updated offsets
         self.estimate_ratio_csa_with_offset()
