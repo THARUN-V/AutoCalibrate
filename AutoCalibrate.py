@@ -3,6 +3,7 @@ from CamCapture import CameraCapture
 from MarkerDetector import ArucoMarkerDetector
 from CamWriter import CameraWriter
 from ParseParams import *
+from CamCalibResultTable import *
 import json
 import logging
 import cv2
@@ -15,13 +16,14 @@ import time
 from prettytable import PrettyTable
 import shutil
 
-class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
+class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTable):
     
     def __init__(self):
         
         ParseParams.__init__(self)
         CamContext.__init__(self)
         ArucoMarkerDetector.__init__(self,self.args.aruco_dict)
+        CamCalibResultTable.__init__(self)
         
         
         # check if all the required params are provided from cli
@@ -73,13 +75,13 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         # videoplayback build name to pring in cli
         self.build_name = self.args.videoplayback_build if len(self.args.videoplayback_build.split("/")) == 1 else self.args.videoplayback_build.split("/")[-1]
         
-        self.table = PrettyTable()
-        self.table.field_names = ["CamName","CamId","RatioWithoutOffset","RatioWithOffset","CsaWithoutOffset","CsaWithOffset","RatioOffset","SteeringAngleOffset","ResultCamTilt","ResultCamRotate"]
-        # self.table.add_row(["","","WithoutOffset","WithOffset","WithoutOffset","WithOffset","",""])
+        # self.table = PrettyTable()
+        # self.table.field_names = ["CamName","CamId","RatioWithoutOffset","RatioWithOffset","CsaWithoutOffset","CsaWithOffset","RatioOffset","SteeringAngleOffset","ResultCamTilt","ResultCamRotate"]
+        # # self.table.add_row(["","","WithoutOffset","WithOffset","WithoutOffset","WithOffset","",""])
         
-        self.FrontCamRow = ["FrontCam","","","","","","","","",""]
-        self.RightCamRow = ["RightCam","","","","","","","","",""]
-        self.LeftCamRow  = ["LeftCam","","","","","","","","",""]
+        # self.FrontCamRow = ["FrontCam","","","","","","","","",""]
+        # self.RightCamRow = ["RightCam","","","","","","","","",""]
+        # self.LeftCamRow  = ["LeftCam","","","","","","","","",""]
             
     def color_text(self,text, color):
         # Define ANSI escape codes
@@ -101,43 +103,71 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         
         # check for pass or fail based on ratio and steering angle, without offsets
         ########## RIGHT CAMERA ##############
-        if not (self.RightCamRow[2] >= self.args.ratio_without_side_cam_offset_min and self.RightCamRow[2] <= self.args.ratio_without_side_cam_offset_max):
-            self.RightCamRow[8] = self.color_text("FAIL","red")
+        # if not (self.RightCamRow[2] >= self.args.ratio_without_side_cam_offset_min and self.RightCamRow[2] <= self.args.ratio_without_side_cam_offset_max):
+        #     self.RightCamRow[8] = self.color_text("FAIL","red")
+        # else:
+        #     self.RightCamRow[8] = self.color_text("PASS","green")
+        # if not (self.RightCamRow[4] >= self.args.csa_without_offset_min and self.RightCamRow[4] <= self.args.csa_without_offset_max):
+        #     self.RightCamRow[9] = self.color_text("FAIL","red")
+        # else:
+        #     self.RightCamRow[9] = self.color_text("PASS","green")
+        
+        if not (self.RightCamRow[self.RATIO_WITHOUT_OFFSET_IDX] >= self.args.ratio_without_side_cam_offset_min and self.RightCamRow[self.RATIO_WITHOUT_OFFSET_IDX] <= self.args.ratio_without_side_cam_offset_max):
+            self.RightCamRow[self.RESULT_CAM_TILT_IDX] = self.color_text("FAIL","red")
         else:
-            self.RightCamRow[8] = self.color_text("PASS","green")
-        if not (self.RightCamRow[4] >= self.args.csa_without_offset_min and self.RightCamRow[4] <= self.args.csa_without_offset_max):
-            self.RightCamRow[9] = self.color_text("FAIL","red")
+            self.RightCamRow[self.RESULT_CAM_TILT_IDX] = self.color_text("PASS","green")
+        if not (self.RightCamRow[self.CSA_WITHOUT_OFFSET_IDX] >= self.args.csa_without_offset_min and self.RightCamRow[self.CSA_WITHOUT_OFFSET_IDX] <= self.args.csa_without_offset_max):
+            self.RightCamRow[self.RESULT_CAM_ROTATE_IDX] = self.color_text("FAIL","red")
         else:
-            self.RightCamRow[9] = self.color_text("PASS","green")
+            self.RightCamRow[self.RESULT_CAM_ROTATE_IDX] = self.color_text("PASS","green")
+        
         ######################################
         
         ########### LEFT CAMERA ######################
-        if not(self.LeftCamRow[2] >= self.args.ratio_without_side_cam_offset_min and self.RightCamRow[2] <= self.args.ratio_without_side_cam_offset_max):
-            self.LeftCamRow[8] = self.color_text("FAIL","red")
+        # if not(self.LeftCamRow[2] >= self.args.ratio_without_side_cam_offset_min and self.RightCamRow[2] <= self.args.ratio_without_side_cam_offset_max):
+        #     self.LeftCamRow[8] = self.color_text("FAIL","red")
+        # else:
+        #     self.LeftCamRow[8] = self.color_text("PASS","green")
+        # if not(self.LeftCamRow[4] >= self.args.csa_without_offset_min and self.LeftCamRow[4] <= self.args.csa_without_offset_max):
+        #     self.LeftCamRow[9] = self.color_text("FAIL","red")
+        # else:
+        #     self.LeftCamRow[9] = self.color_text("PASS","green")
+        
+        if not(self.LeftCamRow[self.RATIO_WITHOUT_OFFSET_IDX] >= self.args.ratio_without_side_cam_offset_min and self.RightCamRow[2] <= self.args.ratio_without_side_cam_offset_max):
+            self.LeftCamRow[self.RESULT_CAM_TILT_IDX] = self.color_text("FAIL","red")
         else:
-            self.LeftCamRow[8] = self.color_text("PASS","green")
-        if not(self.LeftCamRow[4] >= self.args.csa_without_offset_min and self.LeftCamRow[4] <= self.args.csa_without_offset_max):
-            self.LeftCamRow[9] = self.color_text("FAIL","red")
+            self.LeftCamRow[self.RESULT_CAM_TILT_IDX] = self.color_text("PASS","green")
+        if not(self.LeftCamRow[self.CSA_WITHOUT_OFFSET_IDX] >= self.args.csa_without_offset_min and self.LeftCamRow[self.CSA_WITHOUT_OFFSET_IDX] <= self.args.csa_without_offset_max):
+            self.LeftCamRow[self.RESULT_CAM_ROTATE_IDX] = self.color_text("FAIL","red")
         else:
-            self.LeftCamRow[9] = self.color_text("PASS","green")
+            self.LeftCamRow[self.RESULT_CAM_ROTATE_IDX] = self.color_text("PASS","green")
         ##############################################
         
         ############# FRONT CAM #########################
-        if not(self.FrontCamRow[2] >= self.args.ratio_without_side_cam_offset_min and self.FrontCamRow[2] <= self.args.ratio_without_side_cam_offset_max):
-            self.FrontCamRow[8] = self.color_text("FAIL","red")
+        # if not(self.FrontCamRow[2] >= self.args.ratio_without_side_cam_offset_min and self.FrontCamRow[2] <= self.args.ratio_without_side_cam_offset_max):
+        #     self.FrontCamRow[8] = self.color_text("FAIL","red")
+        # else:
+        #     self.FrontCamRow[8] = self.color_text("PASS","green")
+        # if not(self.FrontCamRow[4] >= self.args.csa_without_offset_min and self.FrontCamRow[4] <= self.args.csa_without_offset_max):
+        #     self.FrontCamRow[9] = self.color_text("FAIL","red")
+        # else:
+        #     self.FrontCamRow[9] = self.color_text("PASS","green")
+        
+        if not(self.FrontCamRow[self.RATIO_WITHOUT_OFFSET_IDX] >= self.args.ratio_without_side_cam_offset_min and self.FrontCamRow[self.RATIO_WITHOUT_OFFSET_IDX] <= self.args.ratio_without_side_cam_offset_max):
+            self.FrontCamRow[self.RESULT_CAM_TILT_IDX] = self.color_text("FAIL","red")
         else:
-            self.FrontCamRow[8] = self.color_text("PASS","green")
-        if not(self.FrontCamRow[4] >= self.args.csa_without_offset_min and self.FrontCamRow[4] <= self.args.csa_without_offset_max):
-            self.FrontCamRow[9] = self.color_text("FAIL","red")
+            self.FrontCamRow[self.RESULT_CAM_TILT_IDX] = self.color_text("PASS","green")
+        if not(self.FrontCamRow[self.CSA_WITHOUT_OFFSET_IDX] >= self.args.csa_without_offset_min and self.FrontCamRow[self.CSA_WITHOUT_OFFSET_IDX] <= self.args.csa_without_offset_max):
+            self.FrontCamRow[self.RESULT_CAM_ROTATE_IDX] = self.color_text("FAIL","red")
         else:
-            self.FrontCamRow[9] = self.color_text("PASS","green")
+            self.FrontCamRow[self.RESULT_CAM_ROTATE_IDX] = self.color_text("PASS","green")
         #################################################
         
-        self.table.add_row(self.FrontCamRow)
-        self.table.add_row(self.RightCamRow)
-        self.table.add_row(self.LeftCamRow)
+        # self.table.add_row(self.FrontCamRow)
+        # self.table.add_row(self.RightCamRow)
+        # self.table.add_row(self.LeftCamRow)
         
-        print(self.table)
+        self.update_table()
             
     def detect_and_map_cam_ids(self):
         """
@@ -189,19 +219,19 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                                 self.logger.info(f"Detected Marker Id {current_marker_id} in {cam.serial_number}")
                                 self.current_json["CamParams"][0]["frontCameraId"] = cam.serial_number
                                 self.cam_name_and_index["FrontCam"] = cam.camera_index
-                                self.FrontCamRow[1] = cam.serial_number
+                                self.FrontCamRow[self.CAM_ID_IDX] = cam.serial_number
                                 id_detected = True
                             if current_marker_id == self.args.right_cam_marker_id:
                                 self.logger.info(f"Detected Marker Id {current_marker_id} in {cam.serial_number}")
                                 self.current_json["CamParams"][0]["rightCameraId"] = cam.serial_number
                                 self.cam_name_and_index["RightCam"] = cam.camera_index
-                                self.RightCamRow[1] = cam.serial_number
+                                self.RightCamRow[self.CAM_ID_IDX] = cam.serial_number
                                 id_detected = True
                             if current_marker_id == self.args.left_cam_marker_id:
                                 self.logger.info(f"Detected Marker Id {current_marker_id} in {cam.serial_number}")
                                 self.current_json["CamParams"][0]["leftCameraId"] = cam.serial_number
                                 self.cam_name_and_index["LeftCam"] = cam.camera_index
-                                self.LeftCamRow[1] = cam.serial_number
+                                self.LeftCamRow[self.CAM_ID_IDX] = cam.serial_number
                                 id_detected = True
                             
             if id_detected:
@@ -332,8 +362,8 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     if os.path.exists(self.right_cam_log_file_with_offset):
                         right_cam_ratio_with_offset , right_cam_csa_with_offset = self.get_ratio_csa_from_log_file(self.right_cam_log_file_with_offset)
                         # update this in pretty table
-                        self.RightCamRow[3] = round(right_cam_ratio_with_offset,2)
-                        self.RightCamRow[5] = round(right_cam_csa_with_offset,2)
+                        self.RightCamRow[self.RATIO_WITH_OFFSET_IDX] = round(right_cam_ratio_with_offset,2)
+                        self.RightCamRow[self.CSA_WITH_OFFSET_IDX] = round(right_cam_csa_with_offset,2)
                     else:
                         self.logger.error(f"!!! log file with offset : {self.right_cam_log_file_with_offset} doesn't exist !!!")
                         
@@ -358,8 +388,8 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     if os.path.exists(self.left_cam_log_file_with_offset):
                         left_cam_ratio_with_offset , left_cam_csa_with_offset = self.get_ratio_csa_from_log_file(self.left_cam_log_file_with_offset)
                         # update this in pretty table
-                        self.LeftCamRow[3] = round(left_cam_ratio_with_offset,2)
-                        self.LeftCamRow[5] = round(left_cam_csa_with_offset,2)
+                        self.LeftCamRow[self.RATIO_WITH_OFFSET_IDX] = round(left_cam_ratio_with_offset,2)
+                        self.LeftCamRow[self.CSA_WITH_OFFSET_IDX] = round(left_cam_csa_with_offset,2)
                     else:
                         self.logger.error(f"!!! log file with offset : {self.left_cam_log_file_with_offset} doesn't exist !!!")
                 if "Front" in video_file:
@@ -377,8 +407,8 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     if os.path.exists(self.front_cam_log_file_with_offset):
                         front_cam_ratio_with_offset , front_cam_csa_with_offset = self.get_ratio_csa_from_log_file(self.front_cam_log_file_with_offset)
                         # update this in pretty table
-                        self.FrontCamRow[3] = round(front_cam_ratio_with_offset,2)
-                        self.FrontCamRow[5] = round(front_cam_csa_with_offset,2)
+                        self.FrontCamRow[self.RATIO_WITH_OFFSET_IDX] = round(front_cam_ratio_with_offset,2)
+                        self.FrontCamRow[self.CSA_WITH_OFFSET_IDX] = round(front_cam_csa_with_offset,2)
                     else:
                         self.logger.error(f"!!! log file with offset : {self.left_cam_log_file_with_offset} doesn't exist !!!")
                         
@@ -436,9 +466,9 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
             json.dump(self.current_json,updated_json,indent = 4)
         self.logger.info(f"Done , Overwriting of {cam_name}SideCameraOffset and {cam_name}SteeringOffset in Json file")
         
-        if cam_name == "right": self.RightCamRow[6] = Estimated_SideCameraOffset ; self.RightCamRow[7] = Estimated_SideCameraSteeringOffset
-        if cam_name == "left" : self.LeftCamRow[6] = Estimated_SideCameraOffset ; self.LeftCamRow[7] = Estimated_SideCameraSteeringOffset
-        if cam_name == "front" : self.FrontCamRow[6] = "-" ; self.FrontCamRow[7] = Estimated_SideCameraSteeringOffset
+        if cam_name == "right": self.RightCamRow[self.RATIO_OFFSET_IDX] = Estimated_SideCameraOffset ; self.RightCamRow[self.STEERING_ANGLE_OFFSET_IDX] = Estimated_SideCameraSteeringOffset
+        if cam_name == "left" : self.LeftCamRow[self.RATIO_OFFSET_IDX] = Estimated_SideCameraOffset ; self.LeftCamRow[self.STEERING_ANGLE_OFFSET_IDX] = Estimated_SideCameraSteeringOffset
+        if cam_name == "front" : self.FrontCamRow[self.RATIO_OFFSET_IDX] = "-" ; self.FrontCamRow[self.STEERING_ANGLE_OFFSET_IDX] = Estimated_SideCameraSteeringOffset
         
     def get_formatted_timestamp(self):
         """
@@ -555,8 +585,8 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     
                     right_estimated_ratio_mean , right_csa_mean = self.get_ratio_csa_from_log_file(log_file)
                     
-                    self.RightCamRow[2] = round(right_estimated_ratio_mean,2)
-                    self.RightCamRow[4] = round(right_csa_mean,2)
+                    self.RightCamRow[self.RATIO_WITHOUT_OFFSET_IDX] = round(right_estimated_ratio_mean,2)
+                    self.RightCamRow[self.CSA_WITHOUT_OFFSET_IDX] = round(right_csa_mean,2)
                     
                     self.logger.info(f"right_ratio_mean : {right_estimated_ratio_mean} | right_csa_mean : {right_csa_mean}")
                 
@@ -573,8 +603,8 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     
                     left_estimated_ratio_mean , left_csa_mean = self.get_ratio_csa_from_log_file(log_file)
                     
-                    self.LeftCamRow[2] = round(left_estimated_ratio_mean,2)
-                    self.LeftCamRow[4] = round(left_csa_mean,2)
+                    self.LeftCamRow[self.RATIO_WITHOUT_OFFSET_IDX] = round(left_estimated_ratio_mean,2)
+                    self.LeftCamRow[self.CSA_WITHOUT_OFFSET_IDX] = round(left_csa_mean,2)
                     
                     self.logger.info(f"left_ratio_mean : {left_estimated_ratio_mean} | left_csa_mean : {left_csa_mean}")
                     
@@ -589,8 +619,8 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     
                     front_estimated_ratio_mean , front_csa_mean = self.get_ratio_csa_from_log_file(log_file)
                     
-                    self.FrontCamRow[2] = round(front_estimated_ratio_mean,2)
-                    self.FrontCamRow[4] = round(front_csa_mean,2)
+                    self.FrontCamRow[self.RATIO_WITHOUT_OFFSET_IDX] = round(front_estimated_ratio_mean,2)
+                    self.FrontCamRow[self.CSA_WITHOUT_OFFSET_IDX] = round(front_csa_mean,2)
                     
                     self.logger.info(f"front_ratio_mean : {front_estimated_ratio_mean} | front_csa_mean : {front_csa_mean}")
                     

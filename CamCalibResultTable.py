@@ -39,13 +39,12 @@ class CamCalibResultTable:
         self.RightCamRow = ["RightCam" if i == 0  else None for i in range(len(self.table_field_names))]
         self.LeftCamRow  = ["LeftCam"  if i == 0  else None for i in range(len(self.table_field_names))]
         
-    def print_cam_result(self):
+    def update_table(self):
         self.table.add_row(self.FrontCamRow)
         self.table.add_row(self.RightCamRow)
         self.table.add_row(self.LeftCamRow)
+        
         print(self.table)
-        
-        
         
 if __name__ == "__main__":
     
