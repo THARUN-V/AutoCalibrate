@@ -73,14 +73,64 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         self.build_name = self.args.videoplayback_build if len(self.args.videoplayback_build.split("/")) == 1 else self.args.videoplayback_build.split("/")[-1]
         
         self.table = PrettyTable()
-        self.table.field_names = ["CamName","CamId","RatioWithoutOffset","RatioWithOffset","CsaWithoutOffset","CsaWithOffset","RatioOffset","SteeringAngleOffset","Result"]
+        self.table.field_names = ["CamName","CamId","RatioWithoutOffset","RatioWithOffset","CsaWithoutOffset","CsaWithOffset","RatioOffset","SteeringAngleOffset","ResultCamTilt","ResultCamRotate"]
         # self.table.add_row(["","","WithoutOffset","WithOffset","WithoutOffset","WithOffset","",""])
         
-        self.FrontCamRow = ["FrontCam","","","","","","","",""]
-        self.RightCamRow = ["RightCam","","","","","","","",""]
-        self.LeftCamRow  = ["LeftCam","","","","","","","",""]
+        self.FrontCamRow = ["FrontCam","","","","","","","","",""]
+        self.RightCamRow = ["RightCam","","","","","","","","",""]
+        self.LeftCamRow  = ["LeftCam","","","","","","","","",""]
             
+    def color_text(self,text, color):
+        # Define ANSI escape codes
+        RED = "\033[91m"
+        GREEN = "\033[92m"
+        RESET = "\033[0m"  # Reset to default color
+
+        # Choose the color based on input
+        if color.lower() == 'red':
+            return f"{RED}{text}{RESET}"
+        elif color.lower() == 'green':
+            return f"{GREEN}{text}{RESET}"
+        else:
+            return text  # Return the original text if the color is not recognized
+        
+    
     def print_pretty_table(self):
+        
+        
+        # check for pass or fail based on ratio and steering angle, without offsets
+        ########## RIGHT CAMERA ##############
+        if not (self.RightCamRow[2] >= self.args.ratio_without_side_cam_offset_min and self.RightCamRow[2] <= self.args.ratio_without_side_cam_offset_max):
+            self.RightCamRow[8] = self.color_text("FAIL","red")
+        else:
+            self.RightCamRow[8] = self.color_text("PASS","green")
+        if not (self.RightCamRow[4] >= self.args.csa_without_offset_min and self.RightCamRow[4] <= self.args.csa_without_offset_max):
+            self.RightCamRow[9] = self.color_text("FAIL","red")
+        else:
+            self.RightCamRow[9] = self.color_text("PASS","green")
+        ######################################
+        
+        ########### LEFT CAMERA ######################
+        if not(self.LeftCamRow[2] >= self.args.ratio_without_side_cam_offset_min and self.RightCamRow[2] <= self.args.ratio_without_side_cam_offset_max):
+            self.LeftCamRow[8] = self.color_text("FAIL","red")
+        else:
+            self.LeftCamRow[8] = self.color_text("PASS","green")
+        if not(self.LeftCamRow[4] >= self.args.csa_without_offset_min and self.LeftCamRow[4] <= self.args.csa_without_offset_max):
+            self.LeftCamRow[9] = self.color_text("FAIL","red")
+        else:
+            self.LeftCamRow[9] = self.color_text("PASS","green")
+        ##############################################
+        
+        ############# FRONT CAM #########################
+        if not(self.FrontCamRow[2] >= self.args.ratio_without_side_cam_offset_min and self.FrontCamRow[2] <= self.args.ratio_without_side_cam_offset_max):
+            self.FrontCamRow[8] = self.color_text("FAIL","red")
+        else:
+            self.FrontCamRow[8] = self.color_text("PASS","green")
+        if not(self.FrontCamRow[4] >= self.args.csa_without_offset_min and self.FrontCamRow[4] <= self.args.csa_without_offset_max):
+            self.FrontCamRow[9] = self.color_text("FAIL","red")
+        else:
+            self.FrontCamRow[9] = self.color_text("PASS","green")
+        #################################################
         
         self.table.add_row(self.FrontCamRow)
         self.table.add_row(self.RightCamRow)
@@ -304,44 +354,18 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         """
         utility function to check whether the current estimated ratio without side cam offset lies in acceptable range
         and update the same in json file.
-        """
-        # check if the estimated ratio is between acceptable ratio that is calculated without applying offset
-        if (estimated_ratio >= self.args.ratio_without_side_cam_offset_min and estimated_ratio <= self.args.ratio_without_side_cam_offset_max) and \
-            (estimated_csa >= self.args.csa_without_offset_min and estimated_csa <= self.args.csa_without_offset_max):
-                
-            self.logger.info(f"Current {cam_name}_ratio is in acceptable ratio")
-            self.logger.info(f"Current {cam_name}_current_steering_anlge is in acceptable steering angle")
+        """            
+        Estimated_SideCameraOffset , Estimated_SideCameraSteeringOffset = self.estimate_offset(cam_name = cam_name,measured_ratio = estimated_ratio,measured_steering_angle = estimated_csa)
             
-            # if the current measured ratio is in acceptable range, estimate the side camera offset using the equation by setting target ratio to 0.5
-            self.logger.info(f"Estimating {cam_name}SideCameraOffset with measured_ratio : {estimated_ratio}")
-            self.logger.info(f"Estimating {cam_name}SteeringOffset with measured steering angle : {estimated_csa}")
-            
-            Estimated_SideCameraOffset , Estimated_SideCameraSteeringOffset = self.estimate_offset(cam_name = cam_name,measured_ratio = estimated_ratio,measured_steering_angle = estimated_csa)
-            
-            self.logger.info(f"Estimated {cam_name}SideCameraOffset : {Estimated_SideCameraOffset}")
-            self.logger.info(f"Estimated {cam_name}SteeringOffset : {Estimated_SideCameraSteeringOffset}")
-            
-            # Overwrite right camera offset in json file
-            self.logger.info(f"Overwriting {cam_name}SideCameraOffset and {cam_name}SterringOffset in Json file")
-            
-            with open(self.args.json_path,"w") as updated_json:
-                self.current_json["CamParams"][0][f"{cam_name}SideCameraOffset"] = Estimated_SideCameraOffset
-                self.current_json["CamParams"][0][f"{cam_name}SideSteeringOffset"] = Estimated_SideCameraSteeringOffset
-                json.dump(self.current_json,updated_json,indent = 4)
-            self.logger.info(f"Done , Overwriting of {cam_name}SideCameraOffset and {cam_name}SteeringOffset in Json file")
-            
-            if cam_name == "right": self.RightCamRow[6] = Estimated_SideCameraOffset ; self.RightCamRow[7] = Estimated_SideCameraSteeringOffset
-            if cam_name == "left" : self.LeftCamRow[6] = Estimated_SideCameraOffset ; self.LeftCamRow[7] = Estimated_SideCameraSteeringOffset
-            
-        else:
-            # self.logger.error(f"current position of BOT or CAMERA is not accepted")
-            if not (estimated_ratio >= self.args.ratio_without_side_cam_offset_min and estimated_ratio <= self.args.ratio_without_side_cam_offset_max):
-                self.logger.error(f"Current {cam_name} Ratio : {estimated_ratio} does not lie in acceptable ratio. [{self.args.ratio_without_side_cam_offset_min} <= ratio <= {self.args.ratio_without_side_cam_offset_max}]")
-                self.logger.error(f"--- There is Error in Tilt of Camera Position ---")
-            if not (estimated_csa >= self.args.csa_without_offset_min and estimated_csa <= self.args.csa_without_offset_max):
-                self.logger.error(f"Current {cam_name} Current Steering Angle : {estimated_csa} does not lie in acceptable steering angle. [{self.args.csa_without_offset_min} <= csa <= {self.args.csa_without_offset_max}]")
-                self.logger.error(f"--- There is Error in Rotation of Camera Postition ---")
-            sys.exit()
+        # Overwrite right camera offset in json file
+        with open(self.args.json_path,"w") as updated_json:
+            self.current_json["CamParams"][0][f"{cam_name}SideCameraOffset"] = Estimated_SideCameraOffset
+            self.current_json["CamParams"][0][f"{cam_name}SideSteeringOffset"] = Estimated_SideCameraSteeringOffset
+            json.dump(self.current_json,updated_json,indent = 4)
+        self.logger.info(f"Done , Overwriting of {cam_name}SideCameraOffset and {cam_name}SteeringOffset in Json file")
+        
+        if cam_name == "right": self.RightCamRow[6] = Estimated_SideCameraOffset ; self.RightCamRow[7] = Estimated_SideCameraSteeringOffset
+        if cam_name == "left" : self.LeftCamRow[6] = Estimated_SideCameraOffset ; self.LeftCamRow[7] = Estimated_SideCameraSteeringOffset
         
     def get_formatted_timestamp(self):
         """
