@@ -12,6 +12,7 @@ import numpy
 import sys
 import threading
 import time
+from prettytable import PrettyTable
 
 class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
     
@@ -70,6 +71,22 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         
         # videoplayback build name to pring in cli
         self.build_name = self.args.videoplayback_build if len(self.args.videoplayback_build.split("/")) == 1 else self.args.videoplayback_build.split("/")[-1]
+        
+        self.table = PrettyTable()
+        self.table.field_names = ["CamName","CamId","RatioWithoutOffset","RatioWithOffset","CsaWithoutOffset","CsaWithOffset","RatioOffset","SteeringAngleOffset","Result"]
+        # self.table.add_row(["","","WithoutOffset","WithOffset","WithoutOffset","WithOffset","",""])
+        
+        self.FrontCamRow = ["FrontCam","","","","","","","",""]
+        self.RightCamRow = ["RightCam","","","","","","","",""]
+        self.LeftCamRow  = ["LeftCam","","","","","","","",""]
+            
+    def print_pretty_table(self):
+        
+        self.table.add_row(self.FrontCamRow)
+        self.table.add_row(self.RightCamRow)
+        self.table.add_row(self.LeftCamRow)
+        
+        print(self.table)
             
     def detect_and_map_cam_ids(self):
         """
@@ -121,16 +138,19 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                                 self.logger.info(f"Detected Marker Id {current_marker_id} in {cam.serial_number}")
                                 self.current_json["CamParams"][0]["frontCameraId"] = cam.serial_number
                                 self.cam_name_and_index["FrontCam"] = cam.camera_index
+                                self.FrontCamRow[1] = cam.serial_number
                                 id_detected = True
                             if current_marker_id == self.args.right_cam_marker_id:
                                 self.logger.info(f"Detected Marker Id {current_marker_id} in {cam.serial_number}")
                                 self.current_json["CamParams"][0]["rightCameraId"] = cam.serial_number
                                 self.cam_name_and_index["RightCam"] = cam.camera_index
+                                self.RightCamRow[1] = cam.serial_number
                                 id_detected = True
                             if current_marker_id == self.args.left_cam_marker_id:
                                 self.logger.info(f"Detected Marker Id {current_marker_id} in {cam.serial_number}")
                                 self.current_json["CamParams"][0]["leftCameraId"] = cam.serial_number
                                 self.cam_name_and_index["LeftCam"] = cam.camera_index
+                                self.LeftCamRow[1] = cam.serial_number
                                 id_detected = True
                             
             if id_detected:
@@ -309,6 +329,10 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                 self.current_json["CamParams"][0][f"{cam_name}SideSteeringOffset"] = Estimated_SideCameraSteeringOffset
                 json.dump(self.current_json,updated_json,indent = 4)
             self.logger.info(f"Done , Overwriting of {cam_name}SideCameraOffset and {cam_name}SteeringOffset in Json file")
+            
+            if cam_name == "right": self.RightCamRow[6] = Estimated_SideCameraOffset ; self.RightCamRow[7] = Estimated_SideCameraSteeringOffset
+            if cam_name == "left" : self.LeftCamRow[6] = Estimated_SideCameraOffset ; self.LeftCamRow[7] = Estimated_SideCameraSteeringOffset
+            
         else:
             # self.logger.error(f"current position of BOT or CAMERA is not accepted")
             if not (estimated_ratio >= self.args.ratio_without_side_cam_offset_min and estimated_ratio <= self.args.ratio_without_side_cam_offset_max):
@@ -393,6 +417,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
         self.logger.info("Updated mapped Camera Id's in Json")
         ############################### End of Camera Id Mapping ##############################################
                 
+                
         ### Record video of Front,Left and Right for debug and estimating offsets #########
         self.record_video()
         ###  End Record video of Front,Left and Right for debug and estimating offsets ####
@@ -424,6 +449,9 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     
                     right_estimated_ratio_mean , right_csa_mean = self.get_ratio_csa_from_log_file(log_file)
                     
+                    self.RightCamRow[2] = round(right_estimated_ratio_mean,2)
+                    self.RightCamRow[4] = round(right_csa_mean,2)
+                    
                     self.logger.info(f"right_ratio_mean : {right_estimated_ratio_mean} | right_csa_mean : {right_csa_mean}")
                 
                     self.check_and_update_estimated_offset(cam_name = "right", estimated_ratio = right_estimated_ratio_mean , estimated_csa = right_csa_mean)
@@ -439,16 +467,29 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector):
                     
                     left_estimated_ratio_mean , left_csa_mean = self.get_ratio_csa_from_log_file(log_file)
                     
+                    self.LeftCamRow[2] = round(left_estimated_ratio_mean,2)
+                    self.LeftCamRow[4] = round(left_csa_mean,2)
+                    
                     self.logger.info(f"left_ratio_mean : {left_estimated_ratio_mean} | left_csa_mean : {left_csa_mean}")
                     
                     self.check_and_update_estimated_offset(cam_name = "left",estimated_ratio = left_estimated_ratio_mean , estimated_csa = left_csa_mean)
                     
                     self.logger.info("======== Estimating and Updating leftSideCamearaOffset and leftSteeringOffset [Done] ========")
-        
-        
-        
-            
-        
+                    
+                # get the front cam log file
+                if "Front" in log_file:
+                    
+                    self.logger.info("============ Estimating Front ratio and csa ================")
+                    
+                    front_estimated_ratio_mean , front_csa_mean = self.get_ratio_csa_from_log_file(log_file)
+                    
+                    self.FrontCamRow[2] = round(front_estimated_ratio_mean,2)
+                    self.FrontCamRow[4] = round(front_csa_mean,2)
+                    
+                    self.logger.info(f"front_ratio_mean : {front_estimated_ratio_mean} | front_csa_mean : {front_csa_mean}")
+                    
+        self.print_pretty_table()
+                
 
 if __name__ == "__main__":
        
