@@ -425,7 +425,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         
         csa_mean = numpy.mean(numpy.array(csa))
         
-        return ratio_mean , csa_mean
+        return ratio_mean , int(csa_mean)
     
     def estimate_offset(self,measured_ratio,measured_steering_angle,cam_name = None):
         """
@@ -565,9 +565,16 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         self.logger.info(f"Setting leftSideCameraOffset and rightSideCameraOffset to 0")
         self.current_json["CamParams"][0]["leftSideCameraOffset"] = 0
         self.current_json["CamParams"][0]["rightSideCameraOffset"] = 0
+        
+        # set steering offset to zero
+        self.current_json["CamParams"][0]["leftSideSteeringOffset"] = 0
+        self.current_json["CamParams"][0]["rightSideSteeringOffset"] = 0
+        self.current_json["CamParams"][0]["frontSideSteeringOffset"] = 0
+        
         with open(self.args.json_path,"w") as updated_json:
             json.dump(self.current_json,updated_json,indent = 4)
         self.logger.info(f"Overwritten leftSideCameraOffset : 0 and rightSideCameraOffset : 0")
+        self.logger.info(f"Overwritten leftSideSteeringOffset : 0 , rightSideSteeringOffset : 0 and frontSideSteeringOffset : 0")
         ############## end of setting side camera offsets to zero in current json file ####################
         
         ##### run the existing videoplayback build with video/picture mode to estimate ratio with sidecamera offsets set to zero  #######
