@@ -342,7 +342,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                         with open(self.args.json_path,"w") as right_cam_json:
                             json.dump(updated_json,right_cam_json,indent = 4)
                         
-                        self.right_cam_log_file_with_offset = "RightCamLogWithOffset.txt"
+                        self.right_cam_log_file_with_offset = os.path.join(self.data_dir,"RightCamLogWithOffset.txt")
                         cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {self.right_cam_log_file_with_offset} 2>&1"
                         process = os.system(cmd)
                         if process != 0:
@@ -368,7 +368,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                         with open(self.args.json_path,"w") as left_cam_json:
                             json.dump(updated_json,left_cam_json,indent = 4)
                             
-                        self.left_cam_log_file_with_offset = "LeftCamLogWithOffset.txt"
+                        self.left_cam_log_file_with_offset = os.path.join(self.data_dir,"LeftCamLogWithOffset.txt")
                         cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {self.left_cam_log_file_with_offset} 2>&1"
                         process = os.system(cmd)
                         if process != 0:
@@ -391,7 +391,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                     with open(self.args.json_path,"w") as front_cam_json:
                         json.dump(updated_json,front_cam_json,indent = 4)
                     
-                    self.front_cam_log_file_with_offset = "FrontCamLogWithOffset.txt"
+                    self.front_cam_log_file_with_offset = os.path.join(self.data_dir,"FrontCamLogWithOffset.txt")
                     cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {self.front_cam_log_file_with_offset} 2>&1"
                     process = os.system(cmd)
                     if process != 0:
