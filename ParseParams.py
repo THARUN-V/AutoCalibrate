@@ -70,5 +70,7 @@ class ParseParams:
             self.logger.error("path to VideoPlayback build is not provided")
             return False
         
-        if self.args.debug:
-            return True
+        # if self.args.debug:
+        #     return True
+        
+        return True

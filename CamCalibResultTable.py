@@ -19,7 +19,9 @@ class CamCalibResultTable:
                                   "RatioOffset",            # 6
                                   "SteeringAngleOffset",    # 7
                                   "ResultCamTilt",          # 8
-                                  "ResultCamRotate"]        # 9
+                                  "ResultCamRotate",        # 9
+                                  "RaitoAcceptableWithOffset",# 10
+                                  "CsaAcceptableWithOffset"]  # 11      
         self.table.field_names = self.table_field_names
         ########### index to write data for respective camera ###############
         self.CAM_NAME_IDX               = 0
@@ -32,6 +34,8 @@ class CamCalibResultTable:
         self.STEERING_ANGLE_OFFSET_IDX  = 7
         self.RESULT_CAM_TILT_IDX        = 8
         self.RESULT_CAM_ROTATE_IDX      = 9
+        self.RATIO_WITH_OFFSET_ACCEPTABLE_IDX       = 10
+        self.CSA_WITH_OFFSET_ACCEPTABLE_IDX         = 11
         #####################################################################
         
         ######## generate cam row to add data #############
