@@ -459,6 +459,13 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                 self.current_json["CamParams"][0][f"{cam_name}SideSteeringOffset"] = Estimated_SideCameraSteeringOffset
                 json.dump(self.current_json,updated_json,indent = 4)
             self.logger.info(f"Done , Overwriting of {cam_name}SideCameraOffset and {cam_name}SteeringOffset in Json file")
+            
+        # for front , offset is only for steering angle
+        if cam_name == "front":
+            with open(self.args.json_path,"w") as updated_json:
+                self.current_json["CamParams"][0][f"{cam_name}SideSteeringOffset"] = Estimated_SideCameraSteeringOffset
+                json.dump(self.current_json,updated_json,indent = 4)
+            self.logger.info(f"Done, Overwritting of {cam_name}SideSteeringOffset in json file")
         
         if cam_name == "right": self.RightCamRow[self.RATIO_OFFSET_IDX] = Estimated_SideCameraOffset ; self.RightCamRow[self.STEERING_ANGLE_OFFSET_IDX] = Estimated_SideCameraSteeringOffset
         if cam_name == "left" : self.LeftCamRow[self.RATIO_OFFSET_IDX] = Estimated_SideCameraOffset ; self.LeftCamRow[self.STEERING_ANGLE_OFFSET_IDX] = Estimated_SideCameraSteeringOffset
