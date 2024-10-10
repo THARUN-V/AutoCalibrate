@@ -1,6 +1,9 @@
 import argparse
 import logging
 import os
+import json
+
+from CameraStartUpJsonTemplate import *
 
 class ParseParams:
     
@@ -58,13 +61,6 @@ class ParseParams:
         """
         function to check if all the required params are provided.
         """
-        
-        # if self.args.json_path == None:
-        #     self.logger.error("No Json File provided")
-        #     return False
-        if not os.path.exists(self.args.json_path):
-            self.logger.error(f"!!! No {self.args.json_path} exists !!!")
-            return False
             
         if self.args.videoplayback_build == None:
             self.logger.error("path to VideoPlayback build is not provided")

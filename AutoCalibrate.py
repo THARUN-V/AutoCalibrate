@@ -4,6 +4,7 @@ from MarkerDetector import ArucoMarkerDetector
 from CamWriter import CameraWriter
 from ParseParams import *
 from CamCalibResultTable import *
+from CameraStartUpJsonTemplate import *
 import json
 import logging
 import cv2
@@ -15,6 +16,7 @@ import threading
 import time
 from prettytable import PrettyTable
 import shutil
+import socket
 
 class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTable):
     
@@ -25,15 +27,52 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         ArucoMarkerDetector.__init__(self,self.args.aruco_dict)
         CamCalibResultTable.__init__(self)
         
-        
         # check if all the required params are provided from cli
         # else print the appropriate log and exit.
         if not self.check_params():
             sys.exit()    
             
-        # load the current json file
-        with open(self.args.json_path,"r") as f:
-            self.current_json = json.load(f) 
+        ########### check if json file exists ##################
+        try:
+            with open(self.args.json_path,"r") as existing_json_file:
+                self.current_json = json.load(existing_json_file)
+            # if json file already exist#
+            ########## Prompt the user regarding overwritting of current json file and instruct the user to take backup of current json file ################
+            self.logger.info("**** This Script overwrites the current json file for updating params , Take backup of current json file before proceeding if needed ****")
+            # choice = input(f"{self.get_formatted_timestamp()} Enter y,to proceed , n to exit : ")
+            bkp_choice = input(f"{self.get_formatted_timestamp()} Enter y to take backup , n to skip : ")
+            
+            if bkp_choice == "y":
+                # create a bkp of current json file
+                bkp_json_path = f'CameraStartUpJson_bkp_{datetime.now().strftime("%d-%m-%y_%H-%M-%S")}.json' 
+                with open(bkp_json_path,"w") as bkp_json:
+                    json.dump(self.current_json,bkp_json,indent = 4)
+                self.logger.info(f"Successfully backed up current json at {bkp_json_path}")
+                
+                # overwirte the existing json file with template json file
+                with open(self.args.json_path,"w") as template_json:
+                    json.dump(CameraStartUpJsonTemplate,template_json,indent=4)    
+                    
+                # read the overwritten json as current json for modifying params based on calibration
+                with open(self.args.json_path,"r") as existing_json_file:
+                    self.current_json = json.load(existing_json_file)
+                    
+            if bkp_choice == "n":
+                pass
+            ####### End of, Prompt the user regarding overwritting of current json file and instruct the user to take backup of current json file ###########
+        except FileNotFoundError:
+            self.logger.info("#### CameraStartUpJson not found, creating a template CameraStartUpJson ###")
+            with open(self.args.json_path,"w") as template_json:
+                json.dump(CameraStartUpJsonTemplate,template_json,indent=4)
+            
+        ######### Instruct the user asking if the bot is palced in predefined postion, and whether to proceed for calibartion ##########
+        choice = input(f"{self.get_formatted_timestamp()} Enter y when BOT is positioned properly [predefined calibration position] , n to exit : ")
+        
+        if choice == "y": pass
+        if choice == "n": sys.exit()
+        ##### End of, Instruct the user asking if the bot is palced in predefined postion, and whether to proceed for calibartion ######
+        
+        ########### End of , check if json file exists ##################
             
         # scan the camera and get camera serial numbers
         self.see_cams = self.get_seecam()
@@ -93,6 +132,9 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
     
     def print_pretty_table(self):
         
+        # print bot name #
+        bot_name = socket.gethostname()
+        print(f"=============================== {bot_name} ===============================")
         
         # check for pass or fail based on ratio and steering angle, without offsets
         ########## RIGHT CAMERA ##############
@@ -108,7 +150,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         ######################################
         
         ########### LEFT CAMERA ######################
-        if not(self.LeftCamRow[self.RATIO_WITHOUT_OFFSET_IDX] >= self.args.ratio_without_side_cam_offset_min and self.RightCamRow[2] <= self.args.ratio_without_side_cam_offset_max):
+        if not(self.LeftCamRow[self.RATIO_WITHOUT_OFFSET_IDX] >= self.args.ratio_without_side_cam_offset_min and self.LeftCamRow[self.RATIO_WITHOUT_OFFSET_IDX] <= self.args.ratio_without_side_cam_offset_max):
             self.LeftCamRow[self.RESULT_CAM_TILT_IDX] = self.color_text("FAIL","red")
         else:
             self.LeftCamRow[self.RESULT_CAM_TILT_IDX] = self.color_text("PASS","green")
@@ -425,7 +467,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         
         csa_mean = numpy.mean(numpy.array(csa))
         
-        return ratio_mean , int(csa_mean)
+        return round(ratio_mean,1) , int(csa_mean)
     
     def estimate_offset(self,measured_ratio,measured_steering_angle,cam_name = None):
         """
@@ -508,29 +550,6 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         sys.stdout.flush()
         
     def run_calibration(self):
-        
-        
-        ########## Prompt the user regarding overwritting of current json file and instruct the user to take backup of current json file ################
-        self.logger.info("**** This Script overwrites the current json file for updating params , Take backup of current json file before proceeding if needed ****")
-        # choice = input(f"{self.get_formatted_timestamp()} Enter y,to proceed , n to exit : ")
-        bkp_choice = input(f"{self.get_formatted_timestamp()} Enter y to take backup , n to skip : ")
-        
-        if bkp_choice == "y":
-            # create a bkp of current json file
-            bkp_json_path = f'CameraStartUpJson_bkp_{datetime.now().strftime("%d-%m-%y_%H-%M-%S")}.json' 
-            with open(bkp_json_path,"w") as bkp_json:
-                json.dump(self.current_json,bkp_json,indent = 4)
-            self.logger.info(f"Successfully backed up current json at {bkp_json_path}")
-        if bkp_choice == "n":
-            pass
-        ####### End of, Prompt the user regarding overwritting of current json file and instruct the user to take backup of current json file ###########
-        
-        ######### Instruct the user asking if the bot is palced in predefined postion, and whether to proceed for calibartion ##########
-        choice = input(f"{self.get_formatted_timestamp()} Enter y when BOT is positioned properly [predefined calibration position] , n to exit : ")
-        
-        if choice == "y": pass
-        if choice == "n": sys.exit()
-        ##### End of, Instruct the user asking if the bot is palced in predefined postion, and whether to proceed for calibartion ######
         
         ############################### Camera Id Mapping ####################################################
         self.logger.info("========= Performing Camera Id Mapping =========")
