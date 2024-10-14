@@ -378,20 +378,17 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
             if ".mp4" in video_file:
                 if "Right" in video_file:
                     ####### run videoplayback build and generate log to get ratio and csa ########
-                    if updated_json["CamParams"][0]["rightSideCameraOffset"] != 0:
-                        # change camera to right in json
-                        updated_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 1
-                        with open(self.args.json_path,"w") as right_cam_json:
-                            json.dump(updated_json,right_cam_json,indent = 4)
-                        
-                        self.right_cam_log_file_with_offset = os.path.join(self.data_dir,"RightCamLogWithOffset.txt")
-                        cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {self.right_cam_log_file_with_offset} 2>&1"
-                        process = os.system(cmd)
-                        if process != 0:
-                            self.logger.error(f"!!! Error in Executing {self.videoplayback_build} with {video_file} !!!")
-                    else:
-                        self.logger.info("------ rightSideCameraOffset after estimating offset --------")
-                        self.logger.error(f"rightSideCameraOffset : {updated_json['CamParams'][0]['rightSideCameraOffset']}")
+                    
+                    # change camera to right in json
+                    updated_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 1
+                    with open(self.args.json_path,"w") as right_cam_json:
+                        json.dump(updated_json,right_cam_json,indent = 4)
+                    
+                    self.right_cam_log_file_with_offset = os.path.join(self.data_dir,"RightCamLogWithOffset.txt")
+                    cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {self.right_cam_log_file_with_offset} 2>&1"
+                    process = os.system(cmd)
+                    if process != 0:
+                        self.logger.error(f"!!! Error in Executing {self.videoplayback_build} with {video_file} !!!")
                         
                     ####### parse log file and get ratio and csa with offsets ##########
                     if os.path.exists(self.right_cam_log_file_with_offset):
@@ -404,20 +401,18 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                         
                 if "Left" in video_file:
                     ####### run videoplayback build and generate log to get ratio and csa ########
-                    if updated_json["CamParams"][0]["leftSideCameraOffset"] != 0:
-                        # change camera to right in json
-                        updated_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 2
-                        with open(self.args.json_path,"w") as left_cam_json:
-                            json.dump(updated_json,left_cam_json,indent = 4)
-                            
-                        self.left_cam_log_file_with_offset = os.path.join(self.data_dir,"LeftCamLogWithOffset.txt")
-                        cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {self.left_cam_log_file_with_offset} 2>&1"
-                        process = os.system(cmd)
-                        if process != 0:
-                            self.logger.error(f"!!! Error in Executing {self.videoplayback_build} with {video_file} !!!")
-                    else:
-                        self.logger.info("------ leftSideCameraOffset after estimating offset --------")
-                        self.logger.error(f"leftSideCameraOffset : {updated_json['CamParams'][0]['leftSideCameraOffset']}")
+                    
+                    # change camera to right in json
+                    updated_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 2
+                    with open(self.args.json_path,"w") as left_cam_json:
+                        json.dump(updated_json,left_cam_json,indent = 4)
+                        
+                    self.left_cam_log_file_with_offset = os.path.join(self.data_dir,"LeftCamLogWithOffset.txt")
+                    cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {self.left_cam_log_file_with_offset} 2>&1"
+                    process = os.system(cmd)
+                    if process != 0:
+                        self.logger.error(f"!!! Error in Executing {self.videoplayback_build} with {video_file} !!!")
+                    
                         
                     ####### parse log file and get ratio and csa with offsets ##########
                     if os.path.exists(self.left_cam_log_file_with_offset):
