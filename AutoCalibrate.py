@@ -64,6 +64,31 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
             self.logger.info("#### CameraStartUpJson not found, creating a template CameraStartUpJson ###")
             with open(self.args.json_path,"w") as template_json:
                 json.dump(CameraStartUpJsonTemplate,template_json,indent=4)
+                
+        #################### Ask the user about BotType #########################################
+        self.logger.info("++++++++++++++++ Available BotType ++++++++++++++++")
+        ## print the available bot type to user to pick out of them ##
+        bot_type_info_table = PrettyTable()
+        bot_type_info_table.field_names = ["BotType","Info"]
+        bot_type_info_table.add_row(["1","APPU/JUMBO Bot with Camera mounted on FRP"])
+        bot_type_info_table.add_row(["2","JUMBO Bot with raised FRP and camera mounted on metal plate"])
+        print(bot_type_info_table)
+        ## End of print the available bot type to user to pick out of them ##
+        ## Take the input from user ##
+        bot_type = int(input(f"{self.get_formatted_timestamp()} Enter BotType : "))
+        ## failsafe to make user choose bot_type out of available list ##
+        while bot_type not in [1,2]:
+            self.logger.info("==> please enter BotType from above Available BotType <==")
+            bot_type = int(input(f"{self.get_formatted_timestamp()} Enter BotType : "))
+        ## End of ,failsafe to make user choose bot_type out of available list ##
+        ## open json file and update this param in json file ##
+        with open(self.args.json_path,"r") as bot_type_json_file:
+            update_bot_type_json = json.load(bot_type_json_file)
+        update_bot_type_json["CamParams"][0]["BotType"] = bot_type
+        ## update the BotType in json file
+        with open(self.args.json_path,"w") as updated_bot_type_json:
+            json.dump(update_bot_type_json,updated_bot_type_json,indent=4)
+        ############# End of Ask the user about BotType #########################################
             
         ######### Instruct the user asking if the bot is palced in predefined postion, and whether to proceed for calibartion ##########
         choice = input(f"{self.get_formatted_timestamp()} Enter y when BOT is positioned properly [predefined calibration position] , n to exit : ")
@@ -394,8 +419,8 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                     if os.path.exists(self.right_cam_log_file_with_offset):
                         right_cam_ratio_with_offset , right_cam_csa_with_offset = self.get_ratio_csa_from_log_file(self.right_cam_log_file_with_offset)
                         # update this in pretty table
-                        self.RightCamRow[self.RATIO_WITH_OFFSET_IDX] = round(right_cam_ratio_with_offset,2)
-                        self.RightCamRow[self.CSA_WITH_OFFSET_IDX] = round(right_cam_csa_with_offset,2)
+                        self.RightCamRow[self.RATIO_WITH_OFFSET_IDX] = right_cam_ratio_with_offset
+                        self.RightCamRow[self.CSA_WITH_OFFSET_IDX] = right_cam_csa_with_offset
                     else:
                         self.logger.error(f"!!! log file with offset : {self.right_cam_log_file_with_offset} doesn't exist !!!")
                         
@@ -418,8 +443,8 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                     if os.path.exists(self.left_cam_log_file_with_offset):
                         left_cam_ratio_with_offset , left_cam_csa_with_offset = self.get_ratio_csa_from_log_file(self.left_cam_log_file_with_offset)
                         # update this in pretty table
-                        self.LeftCamRow[self.RATIO_WITH_OFFSET_IDX] = round(left_cam_ratio_with_offset,2)
-                        self.LeftCamRow[self.CSA_WITH_OFFSET_IDX] = round(left_cam_csa_with_offset,2)
+                        self.LeftCamRow[self.RATIO_WITH_OFFSET_IDX] = left_cam_ratio_with_offset
+                        self.LeftCamRow[self.CSA_WITH_OFFSET_IDX] = left_cam_csa_with_offset
                     else:
                         self.logger.error(f"!!! log file with offset : {self.left_cam_log_file_with_offset} doesn't exist !!!")
                 if "Front" in video_file:
@@ -437,8 +462,8 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                     if os.path.exists(self.front_cam_log_file_with_offset):
                         front_cam_ratio_with_offset , front_cam_csa_with_offset = self.get_ratio_csa_from_log_file(self.front_cam_log_file_with_offset)
                         # update this in pretty table
-                        self.FrontCamRow[self.RATIO_WITH_OFFSET_IDX] = round(front_cam_ratio_with_offset,2)
-                        self.FrontCamRow[self.CSA_WITH_OFFSET_IDX] = round(front_cam_csa_with_offset,2)
+                        self.FrontCamRow[self.RATIO_WITH_OFFSET_IDX] = front_cam_ratio_with_offset
+                        self.FrontCamRow[self.CSA_WITH_OFFSET_IDX] = front_cam_csa_with_offset
                     else:
                         self.logger.error(f"!!! log file with offset : {self.left_cam_log_file_with_offset} doesn't exist !!!")
                         
@@ -462,7 +487,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         
         csa_mean = numpy.mean(numpy.array(csa))
         
-        return round(ratio_mean,1) , int(csa_mean)
+        return round(ratio_mean,3) , round(csa_mean,2)
     
     def estimate_offset(self,measured_ratio,measured_steering_angle,cam_name = None):
         """
@@ -474,13 +499,13 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
             sys.exit()
         
         if cam_name == "right":
-            return int(self.current_json["DebugParams"][0]["PathWidth"] * (self.args.target_ratio - measured_ratio)) , int(self.args.target_steering_angle - measured_steering_angle)
+            return int(self.current_json["DebugParams"][0]["PathWidth"] * (self.args.target_ratio - measured_ratio)) , round((self.args.target_steering_angle - measured_steering_angle),2)
         
         if cam_name == "left":
-            return abs(int(self.current_json["DebugParams"][0]["PathWidth"] * (1 - measured_ratio - self.args.target_ratio))) , int(self.args.target_steering_angle - measured_steering_angle)
+            return abs(int(self.current_json["DebugParams"][0]["PathWidth"] * (1 - measured_ratio - self.args.target_ratio))) , round((self.args.target_steering_angle - measured_steering_angle),2)
         
         if cam_name == "front":
-            return None , int(self.args.target_steering_angle - measured_steering_angle)
+            return None , round((self.args.target_steering_angle - measured_steering_angle),2)
         
     def check_and_update_estimated_offset(self,estimated_ratio,estimated_csa,cam_name = None):
         """
@@ -607,8 +632,8 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                     
                     right_estimated_ratio_mean , right_csa_mean = self.get_ratio_csa_from_log_file(log_file)
                     
-                    self.RightCamRow[self.RATIO_WITHOUT_OFFSET_IDX] = round(right_estimated_ratio_mean,2)
-                    self.RightCamRow[self.CSA_WITHOUT_OFFSET_IDX] = round(right_csa_mean,2)
+                    self.RightCamRow[self.RATIO_WITHOUT_OFFSET_IDX] = right_estimated_ratio_mean
+                    self.RightCamRow[self.CSA_WITHOUT_OFFSET_IDX] = right_csa_mean
                     
                     self.logger.info(f"right_ratio_mean : {right_estimated_ratio_mean} | right_csa_mean : {right_csa_mean}")
                 
@@ -625,8 +650,8 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                     
                     left_estimated_ratio_mean , left_csa_mean = self.get_ratio_csa_from_log_file(log_file)
                     
-                    self.LeftCamRow[self.RATIO_WITHOUT_OFFSET_IDX] = round(left_estimated_ratio_mean,2)
-                    self.LeftCamRow[self.CSA_WITHOUT_OFFSET_IDX] = round(left_csa_mean,2)
+                    self.LeftCamRow[self.RATIO_WITHOUT_OFFSET_IDX] = left_estimated_ratio_mean
+                    self.LeftCamRow[self.CSA_WITHOUT_OFFSET_IDX] = left_csa_mean
                     
                     self.logger.info(f"left_ratio_mean : {left_estimated_ratio_mean} | left_csa_mean : {left_csa_mean}")
                     
@@ -641,8 +666,8 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                     
                     front_estimated_ratio_mean , front_csa_mean = self.get_ratio_csa_from_log_file(log_file)
                     
-                    self.FrontCamRow[self.RATIO_WITHOUT_OFFSET_IDX] = round(front_estimated_ratio_mean,2)
-                    self.FrontCamRow[self.CSA_WITHOUT_OFFSET_IDX] = round(front_csa_mean,2)
+                    self.FrontCamRow[self.RATIO_WITHOUT_OFFSET_IDX] = front_estimated_ratio_mean
+                    self.FrontCamRow[self.CSA_WITHOUT_OFFSET_IDX] = front_csa_mean
                     
                     self.logger.info(f"front_ratio_mean : {front_estimated_ratio_mean} | front_csa_mean : {front_csa_mean}")
                     
