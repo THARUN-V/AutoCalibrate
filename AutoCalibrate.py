@@ -65,6 +65,10 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
             with open(self.args.json_path,"w") as template_json:
                 json.dump(CameraStartUpJsonTemplate,template_json,indent=4)
                 
+            # create and open the template json file
+            with open(self.args.json_path,"r") as existing_json_file:
+                self.current_json = json.load(existing_json_file)
+                
         #################### Ask the user about BotType #########################################
         self.logger.info("++++++++++++++++ Available BotType ++++++++++++++++")
         ## print the available bot type to user to pick out of them ##
@@ -159,6 +163,8 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         
         # print bot name #
         bot_name = socket.gethostname()
+        # remove the C from bot name
+        bot_name = bot_name.split("C")[0].strip("-")
         print(f"============================================================== {bot_name} ==============================================================")
         
         # check for pass or fail based on ratio and steering angle, without offsets
