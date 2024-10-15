@@ -124,12 +124,17 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         
         # path for video file to store
         
+        # get the bot name
+        self.bot_name = socket.gethostname()
+        # remove the C from bot name
+        self.bot_name = self.bot_name.split("C")[0].strip("-")
+        
         # count to skip frames that is of green color
         self.skip_frame_count = 3
         # count to keep track of frames being written
         self.current_frame_count = 1
         # directory to store video and log files
-        self.data_dir = os.path.join(os.getcwd(),datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+        self.data_dir = os.path.join(os.getcwd(),self.bot_name+"_"+"AutoCalibData"+"_"+datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
         # create directory to writer log and video 
         os.mkdir(self.data_dir)
         
@@ -161,11 +166,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
     
     def print_pretty_table(self):
         
-        # print bot name #
-        bot_name = socket.gethostname()
-        # remove the C from bot name
-        bot_name = bot_name.split("C")[0].strip("-")
-        print(f"============================================================== {bot_name} ==============================================================")
+        print(f"============================================================== {self.bot_name} ==============================================================")
         
         # check for pass or fail based on ratio and steering angle, without offsets
         ########## RIGHT CAMERA ##############
