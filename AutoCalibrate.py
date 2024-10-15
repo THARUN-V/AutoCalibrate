@@ -159,7 +159,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         
         # print bot name #
         bot_name = socket.gethostname()
-        print(f"=============================== {bot_name} ===============================")
+        print(f"============================================================== {bot_name} ==============================================================")
         
         # check for pass or fail based on ratio and steering angle, without offsets
         ########## RIGHT CAMERA ##############
@@ -265,7 +265,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                 ret , frame = cap.read()
                 
                 if ret:
-                    cv2.imwrite("test_auto_calib.png",frame)
+                    # cv2.imwrite("test_auto_calib.png",frame)
                     # detect the marker in current camera
                     _ , ids , _ , _ = self.get_marker_id(frame)
                     if ids != None:
@@ -335,7 +335,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         if len(os.listdir(self.data_dir)) < self.args.n_cam:
             self.logger.error(f"Only {len(os.listdir(self.data_dir))} exists out of {self.args.n_cam}")
         
-        self.logger.info(f"Executing VideoPlayback build [{self.build_name}] with lefSideCameraOffset : {self.current_json['CamParams'][0]['leftSideCameraOffset']} , rightCameraOffset : {self.current_json['CamParams'][0]['rightSideCameraOffset']}")
+        # self.logger.info(f"Executing VideoPlayback build [{self.build_name}] with lefSideCameraOffset : {self.current_json['CamParams'][0]['leftSideCameraOffset']} , rightCameraOffset : {self.current_json['CamParams'][0]['rightSideCameraOffset']}")
         
         # before executing, check if HostCommunication and HybridSwitch is set to 0 and false
         if self.current_json["DebugParams"][0]["HostCommnFlag"] != 0 and self.current_json["DebugParams"][0]["HybridSwitch"] != False:
@@ -402,6 +402,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         for video_file in os.listdir(self.data_dir):
             if ".mp4" in video_file:
                 if "Right" in video_file:
+                    self.progress_done.clear()
                     ####### run videoplayback build and generate log to get ratio and csa ########
                     
                     # change camera to right in json
@@ -410,10 +411,24 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                         json.dump(updated_json,right_cam_json,indent = 4)
                     
                     self.right_cam_log_file_with_offset = os.path.join(self.data_dir,"RightCamLogWithOffset.txt")
+                    
+                    # Start the progress indicator thread
+                    self.progress_msg = f"{self.get_formatted_timestamp()} Executing VideoPlayback build [{self.build_name}] with {video_file}"
+                    progress_thread = threading.Thread(target = self.print_progress)
+                    progress_thread.start()
+                    
                     cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {self.right_cam_log_file_with_offset} 2>&1"
                     process = os.system(cmd)
-                    if process != 0:
+
+                    if process == 0:
+                        self.progress_done.set()
+                        progress_thread.join()
+                    
+                    else:
+                        self.progress_done.set()
+                        progress_thread.join()
                         self.logger.error(f"!!! Error in Executing {self.videoplayback_build} with {video_file} !!!")
+                        sys.exit()
                         
                     ####### parse log file and get ratio and csa with offsets ##########
                     if os.path.exists(self.right_cam_log_file_with_offset):
@@ -425,6 +440,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                         self.logger.error(f"!!! log file with offset : {self.right_cam_log_file_with_offset} doesn't exist !!!")
                         
                 if "Left" in video_file:
+                    self.progress_done.clear()
                     ####### run videoplayback build and generate log to get ratio and csa ########
                     
                     # change camera to right in json
@@ -433,10 +449,24 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                         json.dump(updated_json,left_cam_json,indent = 4)
                         
                     self.left_cam_log_file_with_offset = os.path.join(self.data_dir,"LeftCamLogWithOffset.txt")
+                    
+                    # Start the progress indicator thread
+                    self.progress_msg = f"{self.get_formatted_timestamp()} Executing VideoPlayback build [{self.build_name}] with {video_file}"
+                    progress_thread = threading.Thread(target = self.print_progress)
+                    progress_thread.start()
+                    
                     cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {self.left_cam_log_file_with_offset} 2>&1"
                     process = os.system(cmd)
-                    if process != 0:
+                    
+                    if process == 0:
+                        self.progress_done.set()
+                        progress_thread.join()
+                    
+                    else:
+                        self.progress_done.set()
+                        progress_thread.join()
                         self.logger.error(f"!!! Error in Executing {self.videoplayback_build} with {video_file} !!!")
+                        sys.exit()
                     
                         
                     ####### parse log file and get ratio and csa with offsets ##########
@@ -448,16 +478,31 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                     else:
                         self.logger.error(f"!!! log file with offset : {self.left_cam_log_file_with_offset} doesn't exist !!!")
                 if "Front" in video_file:
+                    self.progress_done.clear()
                     # change camera to right in json
                     updated_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 0
                     with open(self.args.json_path,"w") as front_cam_json:
                         json.dump(updated_json,front_cam_json,indent = 4)
                     
                     self.front_cam_log_file_with_offset = os.path.join(self.data_dir,"FrontCamLogWithOffset.txt")
+                    
+                    # Start the progress indicator thread
+                    self.progress_msg = f"{self.get_formatted_timestamp()} Executing VideoPlayback build [{self.build_name}] with {video_file}"
+                    progress_thread = threading.Thread(target = self.print_progress)
+                    progress_thread.start()
+                    
                     cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {self.front_cam_log_file_with_offset} 2>&1"
                     process = os.system(cmd)
-                    if process != 0:
+                    
+                    if process == 0:
+                        self.progress_done.set()
+                        progress_thread.join()
+                    
+                    else:
+                        self.progress_done.set()
+                        progress_thread.join()
                         self.logger.error(f"!!! Error in Executing {self.videoplayback_build} with {video_file} !!!")
+                        sys.exit()
                     ####### parse log file and get ratio and csa with offsets ##########
                     if os.path.exists(self.front_cam_log_file_with_offset):
                         front_cam_ratio_with_offset , front_cam_csa_with_offset = self.get_ratio_csa_from_log_file(self.front_cam_log_file_with_offset)
@@ -520,14 +565,14 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                 self.current_json["CamParams"][0][f"{cam_name}SideCameraOffset"] = Estimated_SideCameraOffset
                 self.current_json["CamParams"][0][f"{cam_name}SideSteeringOffset"] = Estimated_SideCameraSteeringOffset
                 json.dump(self.current_json,updated_json,indent = 4)
-            self.logger.info(f"Done , Overwriting of {cam_name}SideCameraOffset and {cam_name}SteeringOffset in Json file")
+            # self.logger.info(f"Done , Overwriting of {cam_name}SideCameraOffset and {cam_name}SteeringOffset in Json file")
             
         # for front , offset is only for steering angle
         if cam_name == "front":
             with open(self.args.json_path,"w") as updated_json:
                 self.current_json["CamParams"][0][f"{cam_name}SideSteeringOffset"] = Estimated_SideCameraSteeringOffset
                 json.dump(self.current_json,updated_json,indent = 4)
-            self.logger.info(f"Done, Overwritting of {cam_name}SideSteeringOffset in json file")
+            # self.logger.info(f"Done, Overwritting of {cam_name}SideSteeringOffset in json file")
         
         if cam_name == "right": self.RightCamRow[self.RATIO_OFFSET_IDX] = Estimated_SideCameraOffset ; self.RightCamRow[self.STEERING_ANGLE_OFFSET_IDX] = Estimated_SideCameraSteeringOffset
         if cam_name == "left" : self.LeftCamRow[self.RATIO_OFFSET_IDX] = Estimated_SideCameraOffset ; self.LeftCamRow[self.STEERING_ANGLE_OFFSET_IDX] = Estimated_SideCameraSteeringOffset
@@ -574,14 +619,14 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         ############################### Camera Id Mapping ####################################################
         self.logger.info("========= Performing Camera Id Mapping =========")
         self.detect_and_map_cam_ids()
-        self.logger.info("=========    Done Camera Id Mapping    =========")
         
         self.logger.info(f"Mapped Camera Id's FrontCameraId : {self.current_json['CamParams'][0]['frontCameraId']} | RightCameraId : {self.current_json['CamParams'][0]['rightCameraId']} | LeftCameraId : {self.current_json['CamParams'][0]['leftCameraId']}")
         self.logger.info(f"Mapped Camera Idx FrontCameraIdx : {self.cam_name_and_index['FrontCam']} | RightCameraIdx : {self.cam_name_and_index['RightCam']} | LeftCameraIdx : {self.cam_name_and_index['LeftCam']}")
         # after detecting camera id, update it in json
         with open(self.args.json_path,"w") as updated_json:
             json.dump(self.current_json,updated_json,indent = 4)
-        self.logger.info("Updated mapped Camera Id's in Json")
+        # self.logger.info("Updated mapped Camera Id's in Json")
+        self.logger.info("=========    Done Camera Id Mapping    =========")
         ############################### End of Camera Id Mapping ##############################################
                 
         ### Record video of Front,Left and Right for debug and estimating offsets #########
@@ -601,7 +646,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         ########################### side camera offset estimation ######################################################
         
         ### for side camera estimation set the current side camera offsets to zero in current json file ###
-        self.logger.info(f"Setting leftSideCameraOffset and rightSideCameraOffset to 0")
+        # self.logger.info(f"Setting leftSideCameraOffset and rightSideCameraOffset to 0")
         self.current_json["CamParams"][0]["leftSideCameraOffset"] = 0
         self.current_json["CamParams"][0]["rightSideCameraOffset"] = 0
         
@@ -612,11 +657,12 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         
         with open(self.args.json_path,"w") as updated_json:
             json.dump(self.current_json,updated_json,indent = 4)
-        self.logger.info(f"Overwritten leftSideCameraOffset : 0 and rightSideCameraOffset : 0")
-        self.logger.info(f"Overwritten leftSideSteeringOffset : 0 , rightSideSteeringOffset : 0 and frontSideSteeringOffset : 0")
+        # self.logger.info(f"Overwritten leftSideCameraOffset : 0 and rightSideCameraOffset : 0")
+        # self.logger.info(f"Overwritten leftSideSteeringOffset : 0 , rightSideSteeringOffset : 0 and frontSideSteeringOffset : 0")
         ############## end of setting side camera offsets to zero in current json file ####################
         
         ##### run the existing videoplayback build with video/picture mode to estimate ratio with sidecamera offsets set to zero  #######
+        self.logger.info(f"########## Executing {self.build_name} without Ratio & Steering Offset ##########")
         self.generate_log_using_existing_build()
         ### End of, run the existing videoplayback build with video/picture mode to estimate ratio with sidecamera offsets set to zero ###
         
@@ -628,52 +674,55 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                 if "Right" in log_file:
                     # get the ratio and csa using log file
                     
-                    self.logger.info("======== Estimating and Updating rightSideCamearaOffset and rightSteeringOffset ========")
+                    # self.logger.info("======== Estimating and Updating rightSideCamearaOffset and rightSteeringOffset ========")
                     
                     right_estimated_ratio_mean , right_csa_mean = self.get_ratio_csa_from_log_file(log_file)
                     
                     self.RightCamRow[self.RATIO_WITHOUT_OFFSET_IDX] = right_estimated_ratio_mean
                     self.RightCamRow[self.CSA_WITHOUT_OFFSET_IDX] = right_csa_mean
                     
-                    self.logger.info(f"right_ratio_mean : {right_estimated_ratio_mean} | right_csa_mean : {right_csa_mean}")
+                    # self.logger.info(f"right_ratio_mean : {right_estimated_ratio_mean} | right_csa_mean : {right_csa_mean}")
                 
                     self.check_and_update_estimated_offset(cam_name = "right", estimated_ratio = right_estimated_ratio_mean , estimated_csa = right_csa_mean)
                     
-                    self.logger.info("======== Estimating and Updating rightSideCamearaOffset and rightSteeringOffset [Done] ========")
+                    # self.logger.info("======== Estimating and Updating rightSideCamearaOffset and rightSteeringOffset [Done] ========")
                         
                 # get the left cam log file
                 if "Left" in log_file:
                     
                     # get the ratio and csa using the log file
                     
-                    self.logger.info("======== Estimating and Updating leftSideCamearaOffset and leftSteeringOffset ========")
+                    # self.logger.info("======== Estimating and Updating leftSideCamearaOffset and leftSteeringOffset ========")
                     
                     left_estimated_ratio_mean , left_csa_mean = self.get_ratio_csa_from_log_file(log_file)
                     
                     self.LeftCamRow[self.RATIO_WITHOUT_OFFSET_IDX] = left_estimated_ratio_mean
                     self.LeftCamRow[self.CSA_WITHOUT_OFFSET_IDX] = left_csa_mean
                     
-                    self.logger.info(f"left_ratio_mean : {left_estimated_ratio_mean} | left_csa_mean : {left_csa_mean}")
+                    # self.logger.info(f"left_ratio_mean : {left_estimated_ratio_mean} | left_csa_mean : {left_csa_mean}")
                     
                     self.check_and_update_estimated_offset(cam_name = "left",estimated_ratio = left_estimated_ratio_mean , estimated_csa = left_csa_mean)
                     
-                    self.logger.info("======== Estimating and Updating leftSideCamearaOffset and leftSteeringOffset [Done] ========")
+                    # self.logger.info("======== Estimating and Updating leftSideCamearaOffset and leftSteeringOffset [Done] ========")
                     
                 # get the front cam log file
                 if "Front" in log_file:
                     
-                    self.logger.info("============ Estimating Front ratio and csa ================")
+                    # self.logger.info("============ Estimating Front Ratio and Steering Angle ================")
                     
                     front_estimated_ratio_mean , front_csa_mean = self.get_ratio_csa_from_log_file(log_file)
                     
                     self.FrontCamRow[self.RATIO_WITHOUT_OFFSET_IDX] = front_estimated_ratio_mean
                     self.FrontCamRow[self.CSA_WITHOUT_OFFSET_IDX] = front_csa_mean
                     
-                    self.logger.info(f"front_ratio_mean : {front_estimated_ratio_mean} | front_csa_mean : {front_csa_mean}")
+                    # self.logger.info(f"front_ratio_mean : {front_estimated_ratio_mean} | front_csa_mean : {front_csa_mean}")
                     
                     self.check_and_update_estimated_offset(cam_name = "front",estimated_ratio = front_estimated_ratio_mean , estimated_csa = front_csa_mean)
                     
+                    # self.logger.info("============ Estimating Front Ratio and Steering Angle [Done] ================")
+                    
         #estimate ratio and csa using the updated offsets
+        self.logger.info(f"########## Executing {self.build_name} with Ratio & Steering Offset ##########")
         self.estimate_ratio_csa_with_offset()
                     
         self.print_pretty_table()
