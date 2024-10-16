@@ -551,10 +551,36 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
             sys.exit()
         
         if cam_name == "right":
-            return int(self.current_json["DebugParams"][0]["PathWidth"] * (self.args.target_ratio - measured_ratio)) , round((self.args.target_steering_angle - measured_steering_angle),2)
+            ## this logic holds good when old version of table is used without botwidth added to distance
+            # return int(self.current_json["DebugParams"][0]["PathWidth"] * (self.args.target_ratio - measured_ratio)) , round((self.args.target_steering_angle - measured_steering_angle),2)
+
+            ## logic to estimate offset in distance using table with botwidth added to distance.
+             
+            # return ((self.current_json["DebugParams"][0]["PathWidth"]*0.5)-(measured_ratio*self.current_json["DebugParams"][0]["PathWidth"])) , round((self.args.target_steering_angle - measured_steering_angle),2)
+
+            ratio_offset = (self.current_json["DebugParams"][0]["PathWidth"]*0.5)-(measured_ratio*self.current_json["DebugParams"][0]["PathWidth"])
+            steering_angle_offset = round((self.args.target_steering_angle - measured_steering_angle),2)
+            
+            if (self.current_json["DebugParams"][0]["PathWidth"]*0.5) + ratio_offset > (self.current_json["DebugParams"][0]["PathWidth"]*0.5):
+                return round(-ratio_offset,2) , steering_angle_offset
+            else:
+                return round(ratio_offset,2) , steering_angle_offset
         
         if cam_name == "left":
-            return abs(int(self.current_json["DebugParams"][0]["PathWidth"] * (1 - measured_ratio - self.args.target_ratio))) , round((self.args.target_steering_angle - measured_steering_angle),2)
+            ## this logic holds good when old version of table is used without botwidth added to distance
+            # return abs(int(self.current_json["DebugParams"][0]["PathWidth"] * (1 - measured_ratio - self.args.target_ratio))) , round((self.args.target_steering_angle - measured_steering_angle),2)
+            
+            ## logic to estimate offset in distance using table with botwidth added to distance.
+            # return ((self.current_json["DebugParams"][0]["PathWidth"]*0.5)-(measured_ratio*self.current_json["DebugParams"][0]["PathWidth"])) , round((self.args.target_steering_angle - measured_steering_angle),2)
+
+            ratio_offset = (self.current_json["DebugParams"][0]["PathWidth"]*0.5)-(measured_ratio*self.current_json["DebugParams"][0]["PathWidth"])
+            steering_angle_offset = round((self.args.target_steering_angle - measured_steering_angle),2)
+            
+            if (self.current_json["DebugParams"][0]["PathWidth"]*0.5) + ratio_offset > (self.current_json["DebugParams"][0]["PathWidth"]*0.5):
+                return round(-ratio_offset,2) , steering_angle_offset
+            else:
+                return round(ratio_offset,2) , steering_angle_offset
+        
         
         if cam_name == "front":
             return None , round((self.args.target_steering_angle - measured_steering_angle),2)
