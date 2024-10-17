@@ -93,6 +93,24 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         with open(self.args.json_path,"w") as updated_bot_type_json:
             json.dump(update_bot_type_json,updated_bot_type_json,indent=4)
         ############# End of Ask the user about BotType #########################################
+        
+        
+        ################# lane color and path width ###############################
+        with open(self.args.json_path,"r") as json_file:
+            lane_color_json_file = json.load(json_file)
+        LaneColorInput = int(input(f"{self.get_formatted_timestamp()} Enter LaneColor : "))
+        lane_color_json_file["CamParams"][0]["LaneColourToScan"] = LaneColorInput
+        with open(self.args.json_path,"w") as updated_lane_color_json_file:
+            json.dump(lane_color_json_file,updated_lane_color_json_file,indent=4)
+            
+        with open(self.args.json_path,"r") as json_file:
+            path_width_json_file = json.load(json_file)
+        PathWidthInput = int(input(f"{self.get_formatted_timestamp()} Enter PathWidth [in cm]: "))
+        path_width_json_file["DebugParams"][0]["PathWidth"] = PathWidthInput
+        with open(self.args.json_path,"w") as updated_path_width_json_file:
+            json.dump(path_width_json_file,updated_path_width_json_file,indent=4)
+        
+        ###########################################################################
             
         ######### Instruct the user asking if the bot is palced in predefined postion, and whether to proceed for calibartion ##########
         choice = input(f"{self.get_formatted_timestamp()} Enter y when BOT is positioned properly [predefined calibration position] , n to exit : ")
