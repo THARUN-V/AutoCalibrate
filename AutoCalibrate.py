@@ -652,7 +652,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                     # get csa mean
                     _ , right_csa_with_ratio_offset = self.get_ratio_csa_from_log_file(log_file)
                     # get steering offset
-                    right_steering_offset = round(90 - right_csa_with_ratio_offset,2)
+                    right_steering_offset = round(self.args.target_steering_angle - right_csa_with_ratio_offset,2)
                     # update in json file
                     with open(self.args.json_path,"r") as json_without_right_steering_offset:
                         right_steering_offset_json = json.load(json_without_right_steering_offset)
@@ -669,7 +669,7 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                     # get csa mean
                     _ , left_csa_with_ratio_offset = self.get_ratio_csa_from_log_file(log_file)
                     # get steering offset
-                    left_steering_offset = round(90 - left_csa_with_ratio_offset,2)
+                    left_steering_offset = round(self.args.target_steering_angle - left_csa_with_ratio_offset,2)
                     # update in json file
                     with open(self.args.json_path,"r") as json_without_left_steering_offset:
                         left_steering_offset_json = json.load(json_without_left_steering_offset)
