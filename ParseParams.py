@@ -44,6 +44,9 @@ class ParseParams:
         parser.add_argument("--debug",action = "store_true",help = "param to run script in debug mode with provided video file")
         parser.add_argument("--video_path",type = str , default = None,help = "path to video file for debug mode")
         
+        ### param to skip camera device id mapping and perform only ratio estimation ###
+        parser.add_argument("--skip_camera_id_mapping",action="store_true",help = "Param to skip camera device id mapping and estimate only offsets")
+        
         self.args = parser.parse_args()
         
         # resolution of camera #
