@@ -592,7 +592,8 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
             # Overwrite right camera offset in json file
             with open(self.args.json_path,"w") as updated_json:
                 self.current_json["CamParams"][0][f"{cam_name}SideCameraOffset"] = Estimated_SideCameraOffset
-                self.current_json["CamParams"][0][f"{cam_name}SideSteeringOffset"] = Estimated_SideCameraSteeringOffset
+                # self.current_json["CamParams"][0][f"{cam_name}SideSteeringOffset"] = Estimated_SideCameraSteeringOffset
+                
                 json.dump(self.current_json,updated_json,indent = 4)
             # self.logger.info(f"Done , Overwriting of {cam_name}SideCameraOffset and {cam_name}SteeringOffset in Json file")
             
@@ -642,6 +643,45 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                 time.sleep(0.5)
         sys.stdout.write(f'\r{self.progress_msg} [Done] \n')
         sys.stdout.flush()
+        
+    def estimate_and_update_steering_offset(self):
+        for log_file in os.listdir(self.data_dir):
+            log_file = os.path.join(self.data_dir,log_file)
+            if ".txt" in log_file:
+                if "RightCamLogWithOffset" in log_file:
+                    # get csa mean
+                    _ , right_csa_with_ratio_offset = self.get_ratio_csa_from_log_file(log_file)
+                    # get steering offset
+                    right_steering_offset = round(90 - right_csa_with_ratio_offset,2)
+                    # update in json file
+                    with open(self.args.json_path,"r") as json_without_right_steering_offset:
+                        right_steering_offset_json = json.load(json_without_right_steering_offset)
+                    right_steering_offset_json["CamParams"][0]["rightSideSteeringOffset"] = right_steering_offset
+                    with open(self.args.json_path,"w") as json_with_right_steering_offset:
+                        json.dump(right_steering_offset_json,json_with_right_steering_offset,indent=4)
+                    
+                    # update in display table
+                    self.RightCamRow[self.CSA_WITHOUT_OFFSET_IDX] = right_csa_with_ratio_offset
+                    self.RightCamRow[self.CSA_WITH_OFFSET_IDX] = right_csa_with_ratio_offset + right_steering_offset
+                    self.RightCamRow[self.STEERING_ANGLE_OFFSET_IDX] = right_steering_offset
+                    
+                if "LeftCamLogWithOffset" in log_file:
+                    # get csa mean
+                    _ , left_csa_with_ratio_offset = self.get_ratio_csa_from_log_file(log_file)
+                    # get steering offset
+                    left_steering_offset = round(90 - left_csa_with_ratio_offset,2)
+                    # update in json file
+                    with open(self.args.json_path,"r") as json_without_left_steering_offset:
+                        left_steering_offset_json = json.load(json_without_left_steering_offset)
+                    left_steering_offset_json["CamParams"][0]["leftSideSteeringOffset"] = left_steering_offset
+                    with open(self.args.json_path,"w") as json_with_left_steering_offset:
+                        json.dump(left_steering_offset_json,json_with_left_steering_offset,indent=4)
+                    
+                    # update in display table
+                    self.LeftCamRow[self.CSA_WITHOUT_OFFSET_IDX] = left_csa_with_ratio_offset
+                    self.LeftCamRow[self.CSA_WITH_OFFSET_IDX] = left_csa_with_ratio_offset + left_steering_offset
+                    self.LeftCamRow[self.STEERING_ANGLE_OFFSET_IDX] = left_steering_offset
+        
         
     def run_calibration(self):
         
@@ -753,6 +793,9 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         #estimate ratio and csa using the updated offsets
         self.logger.info(f"########## Executing {self.build_name} with Ratio & Steering Offset ##########")
         self.estimate_ratio_csa_with_offset()
+        
+        # estimate and update steering angle , using ratio with ratio offset
+        self.estimate_and_update_steering_offset()
                     
         self.print_pretty_table()
                 
