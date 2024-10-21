@@ -32,42 +32,48 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         if not self.check_params():
             sys.exit()    
             
-        ########### check if json file exists ##################
-        try:
-            with open(self.args.json_path,"r") as existing_json_file:
-                self.current_json = json.load(existing_json_file)
-            # if json file already exist#
-            ########## Prompt the user regarding overwritting of current json file and instruct the user to take backup of current json file ################
-            self.logger.info("**** This Script overwrites the current json file for updating params , Take backup of current json file before proceeding if needed ****")
-            # choice = input(f"{self.get_formatted_timestamp()} Enter y,to proceed , n to exit : ")
-            bkp_choice = input(f"{self.get_formatted_timestamp()} Enter y to take backup , n to skip : ")
+        ########## skip the reading and creating of json file, if camera id mapping is skipped #####
+        #### print info about skipping camera device id mapping to user ###
+        if self.args.skip_camera_id_mapping:
+            self.logger.info("######################## Skipping Camera Device Id Mapping ######################################")
             
-            if bkp_choice == "y":
-                # create a bkp of current json file
-                bkp_json_path = f'CameraStartUpJson_bkp_{datetime.now().strftime("%d-%m-%y_%H-%M-%S")}.json' 
-                with open(bkp_json_path,"w") as bkp_json:
-                    json.dump(self.current_json,bkp_json,indent = 4)
-                self.logger.info(f"Successfully backed up current json at {bkp_json_path}")
-                
-                # overwirte the existing json file with template json file
-                with open(self.args.json_path,"w") as template_json:
-                    json.dump(CameraStartUpJsonTemplate,template_json,indent=4)    
-                    
-                # read the overwritten json as current json for modifying params based on calibration
+        ########### check if json file exists ##################
+        if not self.args.skip_camera_id_mapping:
+            try:
                 with open(self.args.json_path,"r") as existing_json_file:
                     self.current_json = json.load(existing_json_file)
-                    
-            if bkp_choice == "n":
-                pass
-            ####### End of, Prompt the user regarding overwritting of current json file and instruct the user to take backup of current json file ###########
-        except FileNotFoundError:
-            self.logger.info("#### CameraStartUpJson not found, creating a template CameraStartUpJson ###")
-            with open(self.args.json_path,"w") as template_json:
-                json.dump(CameraStartUpJsonTemplate,template_json,indent=4)
+                # if json file already exist#
+                ########## Prompt the user regarding overwritting of current json file and instruct the user to take backup of current json file ################
+                self.logger.info("**** This Script overwrites the current json file for updating params , Take backup of current json file before proceeding if needed ****")
+                # choice = input(f"{self.get_formatted_timestamp()} Enter y,to proceed , n to exit : ")
+                bkp_choice = input(f"{self.get_formatted_timestamp()} Enter y to take backup , n to skip : ")
                 
-            # create and open the template json file
-            with open(self.args.json_path,"r") as existing_json_file:
-                self.current_json = json.load(existing_json_file)
+                if bkp_choice == "y":
+                    # create a bkp of current json file
+                    bkp_json_path = f'CameraStartUpJson_bkp_{datetime.now().strftime("%d-%m-%y_%H-%M-%S")}.json' 
+                    with open(bkp_json_path,"w") as bkp_json:
+                        json.dump(self.current_json,bkp_json,indent = 4)
+                    self.logger.info(f"Successfully backed up current json at {bkp_json_path}")
+                    
+                    # overwirte the existing json file with template json file
+                    with open(self.args.json_path,"w") as template_json:
+                        json.dump(CameraStartUpJsonTemplate,template_json,indent=4)    
+                        
+                    # read the overwritten json as current json for modifying params based on calibration
+                    with open(self.args.json_path,"r") as existing_json_file:
+                        self.current_json = json.load(existing_json_file)
+                        
+                if bkp_choice == "n":
+                    pass
+                ####### End of, Prompt the user regarding overwritting of current json file and instruct the user to take backup of current json file ###########
+            except FileNotFoundError:
+                self.logger.info("#### CameraStartUpJson not found, creating a template CameraStartUpJson ###")
+                with open(self.args.json_path,"w") as template_json:
+                    json.dump(CameraStartUpJsonTemplate,template_json,indent=4)
+                    
+                # create and open the template json file
+                with open(self.args.json_path,"r") as existing_json_file:
+                    self.current_json = json.load(existing_json_file)
                 
         #################### Ask the user about BotType #########################################
         self.logger.info("++++++++++++++++ Available BotType ++++++++++++++++")
@@ -685,18 +691,20 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         
     def run_calibration(self):
         
-        ############################### Camera Id Mapping ####################################################
-        self.logger.info("========= Performing Camera Id Mapping =========")
-        self.detect_and_map_cam_ids()
-        
-        self.logger.info(f"Mapped Camera Id's FrontCameraId : {self.current_json['CamParams'][0]['frontCameraId']} | RightCameraId : {self.current_json['CamParams'][0]['rightCameraId']} | LeftCameraId : {self.current_json['CamParams'][0]['leftCameraId']}")
-        self.logger.info(f"Mapped Camera Idx FrontCameraIdx : {self.cam_name_and_index['FrontCam']} | RightCameraIdx : {self.cam_name_and_index['RightCam']} | LeftCameraIdx : {self.cam_name_and_index['LeftCam']}")
-        # after detecting camera id, update it in json
-        with open(self.args.json_path,"w") as updated_json:
-            json.dump(self.current_json,updated_json,indent = 4)
-        # self.logger.info("Updated mapped Camera Id's in Json")
-        self.logger.info("=========    Done Camera Id Mapping    =========")
-        ############################### End of Camera Id Mapping ##############################################
+        ###### skip camera id mapping, if skip_camera_id_mapping is true ####
+        if not self.args.skip_camera_id_mapping:
+            ############################### Camera Id Mapping ####################################################
+            self.logger.info("========= Performing Camera Id Mapping =========")
+            self.detect_and_map_cam_ids()
+            
+            self.logger.info(f"Mapped Camera Id's FrontCameraId : {self.current_json['CamParams'][0]['frontCameraId']} | RightCameraId : {self.current_json['CamParams'][0]['rightCameraId']} | LeftCameraId : {self.current_json['CamParams'][0]['leftCameraId']}")
+            self.logger.info(f"Mapped Camera Idx FrontCameraIdx : {self.cam_name_and_index['FrontCam']} | RightCameraIdx : {self.cam_name_and_index['RightCam']} | LeftCameraIdx : {self.cam_name_and_index['LeftCam']}")
+            # after detecting camera id, update it in json
+            with open(self.args.json_path,"w") as updated_json:
+                json.dump(self.current_json,updated_json,indent = 4)
+            # self.logger.info("Updated mapped Camera Id's in Json")
+            self.logger.info("=========    Done Camera Id Mapping    =========")
+            ############################### End of Camera Id Mapping ##############################################
                 
         ### Record video of Front,Left and Right for debug and estimating offsets #########
         self.record_video()
