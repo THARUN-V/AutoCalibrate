@@ -29,7 +29,20 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
         # check if all the required params are provided from cli
         # else print the appropriate log and exit.
         if not self.check_params():
-            sys.exit()    
+            sys.exit()
+            
+        # name for backed up CameraStartUpJson
+        self.bkp_camera_startup_json_name = f"CameraStartUpJson_bkp_{datetime.now().strftime('%d-%m-%y_%H-%M-%S')}.json"
+            
+    def get_formatted_timestamp(self):
+        """
+        Utility function to add formatted string with time stamp and log level, while taking user input.
+        """
+        
+        log_level = "INFO"
+        timestamp = datetime.now().strftime("%d/%m/%y %H:%M:%S")
+        
+        return f"[{timestamp}, {log_level}]"    
         
     def check_and_create_json(self):
         """
@@ -41,6 +54,27 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
             
             with open(self.args.json_path,"r") as camera_startup_json:
                 self.current_json = json.load(camera_startup_json)
+                
+            # if CameraStartUpJson is already present ask the user, if it has to backed up
+            self.logger.info("**** This Script overwrites the current json file for updating params , Take backup of current json file before proceeding if needed ****")
+            
+            bkp_choice = input(f"{self.get_formatted_timestamp()} Enter y to take backup , n to skip : ")
+            
+            # while taking input, check for proper input 
+            while bkp_choice not in ["y","n"]:
+                self.logger.info("######## Please provide y or n , to take backup of current CameraStartUpJson ########")
+                bkp_choice = input(f"{self.get_formatted_timestamp()} Enter y to take backup , n to skip : ")
+            
+            # if yes take backup of current CameraStartUpJson by copying it with different name
+            # the backed up CameraStartUpJson will be saved as CameraStartUpJson_bkp_<current_date_and_time>
+            if bkp_choice == "y":
+                with open(self.bkp_camera_startup_json_name,"w") as bkp_camera_startup_json:
+                    json.dump(self.current_json,bkp_camera_startup_json,indent=4)
+                # log the msg regarding successful backup of current CameraStartUpJson
+                self.logger.info(f"Successfully backed up current CameraStartUpjson at {self.bkp_camera_startup_json_name}")
+            if bkp_choice == "n":
+                pass
+                
                 
         except FileNotFoundError:
             
