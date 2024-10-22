@@ -24,6 +24,11 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
         CamContext.__init__(self)
         ArucoMarkerDetector.__init__(self,self.args.aruco_dict)
         
+        
+        ### configure seecam ###
+        self.configure_seecams()
+        ########################
+        
         self.current_json = None
         
         # check if all the required params are provided from cli
@@ -153,7 +158,38 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
             
         if bot_placement_input == "y" : pass
         if bot_placement_input == "n" : sys.exit()
+        
+        
+    def configure_seecams(self):
+        """
+        1. scans and gets the serial number of seecam connected.
+        2. if no cam is connected, exists the code by displaying log
+        3. if number of connected cam and configured number of cam doesn't match , program exists with error msg.
+        4. maintains a dict to store camera name and its serial number
+        """
+        
+        # scan the camera and get camera serial numbers
+        self.see_cams = self.get_seecam()
+        
+        # if no cameras found exit with error message
+        if self.see_cams == None:
+            self.logger.error("!!! No Cameras Found !!!")
+            sys.exit()
+        
+        # check if the scanned and provided number of cameras match
+        if len(self.see_cams) != self.args.n_cam:
+            self.logger.error(f"Found {len(self.see_cams)} cameras out of {self.args.n_cam}")
+            sys.exit()
             
+        self.cam_name_and_index = {
+            "FrontCam":None,
+            "RightCam":None,
+            "LeftCam":None
+        }
+        
+    def perform_camera_id_mapping(self):
+        pass        
+
         
     def run_calibration(self):
         """
