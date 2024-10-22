@@ -141,6 +141,20 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
         # update the lane colour in CameraStartUpJson
         self.update_param_in_camera_startup_json(ParamType="CamParams",LaneColourToScan=lane_colour_input)
         
+    def configue_bot_placement(self):
+        """
+        get conformation from user regarding, whether the bot is placed and it's good to continue auto calibration.
+        """
+        bot_placement_input = input(f"{self.get_formatted_timestamp()} Enter y when BOT is positioned properly [predefined calibration position] , n to exit : ")
+        
+        while bot_placement_input not in ["y","n"]:
+            self.logger.info("########### Please provide y or n to proceed for AutoCalibration ###########")
+            bot_placement_input = input(f"{self.get_formatted_timestamp()} Enter y when BOT is positioned properly [predefined calibration position] , n to exit : ")
+            
+        if bot_placement_input == "y" : pass
+        if bot_placement_input == "n" : sys.exit()
+            
+        
     def run_calibration(self):
         """
         Main function where all the functions related to auto calibration are called in sequence.
@@ -157,6 +171,10 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
         ############# Configure LaneColourToScan ################
         self.configure_lane_colour()
         #########################################################
+        
+        ############# configure bot placement in predefined calibration position ###########
+        self.configue_bot_placement()
+        ####################################################################################
         
         
         
