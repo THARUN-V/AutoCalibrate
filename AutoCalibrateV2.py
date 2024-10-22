@@ -187,8 +187,75 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
             "LeftCam":None
         }
         
-    def perform_camera_id_mapping(self):
-        pass        
+    def detect_and_map_cam_ids(self):
+        """
+        Function to detect markers in image and map the camera ids.
+        """
+        self.logger.info("========= Performing Camera Id Mapping =========")
+        
+        # mainatin predefined markers to avoid false detection
+        predefined_marker_ids = [self.args.front_cam_marker_id,self.args.right_cam_marker_id,self.args.left_cam_marker_id]
+        
+        # utility function to conver list of list of ids to list of id
+        def get_id_from_ids(ids):
+            id = ids[0]
+            
+            if len(id) > 1:
+                self.logger.error(f"more than 1 marker detected")
+                sys.exit()
+            else:
+                return id[0]
+        
+        # iterate over seecam object and detect markers
+        for cam in self.see_cams:
+            # get the current cam index , fetch frame and detect marker
+            cap = cv2.VideoCapture(cam.camera_index)
+            
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH,self.w)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT,self.h)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE,1)
+            cap.set(cv2.CAP_PROP_FPS,15)
+            
+            
+            # flag to check if id is detected for current cam
+            id_detected = False
+            
+            while not id_detected:
+                
+                ret , frame = cap.read()
+                
+                if ret:
+                    # detect the marker in current camera
+                    _ , ids , _ , _ = self.get_marker_id(frame)
+                    if ids != None:
+                        # since the ids returned is list of list of ids
+                        # convert this into single list of one id
+                        current_marker_id = get_id_from_ids(ids)
+                        # check the id and assign the camera index to corresponding camere name
+                        # and update id in json file
+                        if current_marker_id in predefined_marker_ids:
+                            if current_marker_id == self.args.front_cam_marker_id:
+                                self.logger.info(f"Detected Marker Id {current_marker_id} in {cam.serial_number}")
+                                self.update_param_in_camera_startup_json(ParamType="CamParams",frontCameraId=cam.serial_number)
+                                self.cam_name_and_index["FrontCam"] = cam.camera_index
+                                id_detected = True
+                            if current_marker_id == self.args.right_cam_marker_id:
+                                self.logger.info(f"Detected Marker Id {current_marker_id} in {cam.serial_number}")
+                                self.update_param_in_camera_startup_json(ParamType="CamParams",rightCameraId=cam.serial_number)
+                                self.cam_name_and_index["RightCam"] = cam.camera_index
+                                id_detected = True
+                            if current_marker_id == self.args.left_cam_marker_id:
+                                self.logger.info(f"Detected Marker Id {current_marker_id} in {cam.serial_number}")
+                                self.update_param_in_camera_startup_json(ParamType="CamParams",leftCameraId=cam.serial_number)
+                                self.cam_name_and_index["LeftCam"] = cam.camera_index
+                                id_detected = True
+                            
+            if id_detected:
+                cap.release()
+                
+                
+        self.logger.info(f"Mapped Camera Id's FrontCameraId : {self.current_json['CamParams'][0]['frontCameraId']} | RightCameraId : {self.current_json['CamParams'][0]['rightCameraId']} | LeftCameraId : {self.current_json['CamParams'][0]['leftCameraId']}")
+        self.logger.info(f"Mapped Camera Idx FrontCameraIdx : {self.cam_name_and_index['FrontCam']} | RightCameraIdx : {self.cam_name_and_index['RightCam']} | LeftCameraIdx : {self.cam_name_and_index['LeftCam']}")
 
         
     def run_calibration(self):
@@ -211,6 +278,10 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
         ############# configure bot placement in predefined calibration position ###########
         self.configue_bot_placement()
         ####################################################################################
+        
+        ############# Perform Camera Id Mapping ###############
+        self.detect_and_map_cam_ids()
+        #######################################################
         
         
         
