@@ -44,7 +44,7 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
         
         return f"[{timestamp}, {log_level}]"    
         
-    def check_and_create_json(self):
+    def configure_camera_startup_json(self):
         """
         This function checks for CameraStartUpJon.
         if CameraStartUpJson is present take the current CameraStartUpJson
@@ -95,7 +95,7 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
         """
         
         ########### check for CameraStartUpJson #################
-        self.check_and_create_json()
+        self.configure_camera_startup_json()
         #########################################################
         
     
