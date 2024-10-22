@@ -132,6 +132,15 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
         # update the BotType in CameraStartUpJson
         self.update_param_in_camera_startup_json(ParamType="CamParams",BotType=bot_type)
         
+    def configure_lane_colour(self):
+        """
+        get LaneColourToScan from user and update it in CameraStartUpJson
+        """
+        lane_colour_input = int(input(f"{self.get_formatted_timestamp()} Enter LaneColor : "))
+        
+        # update the lane colour in CameraStartUpJson
+        self.update_param_in_camera_startup_json(ParamType="CamParams",LaneColourToScan=lane_colour_input)
+        
     def run_calibration(self):
         """
         Main function where all the functions related to auto calibration are called in sequence.
@@ -145,6 +154,9 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
         self.configure_bot_type()
         #########################################################
         
+        ############# Configure LaneColourToScan ################
+        self.configure_lane_colour()
+        #########################################################
         
         
         
