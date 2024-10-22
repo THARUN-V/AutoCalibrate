@@ -55,6 +55,33 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
         # count to keep track of frames being written
         self.current_frame_count = 1
         ###############################################
+        
+        # flag to indicate the progress of executing video playback with recorded video
+        self.progress_done = threading.Event()
+        self.progress_msg = None
+        
+        ############ log file names ###############
+        self.log_file_name = {
+            0 : {
+                "front" : "FrontWithoutRatioOffsetAndWithoutSteeringOffset.txt",
+                "right" : "RightWithoutRatioOffsetAndWithoutSteeringOffset.txt",
+                "left"  : "LeftWithoutRatioOffsetAndWithoutSteeringOffset.txt"
+            },
+            1 : {
+                "front" : "FrontWithRatioOffsetAndWithoutSteeringOffset.txt",
+                "right" : "RightWithRatioOffsetAndWithoutSteeringOffset.txt",
+                "left"  : "LeftWithRatioOffsetAndWithoutSteeringOffset.txt",
+            },
+            2 : {
+                "front" : "FrontWithRatioOffsetAndWithSteeringOffset.txt",
+                "right" : "RightWithRatioOffsetAndWithSteeringOffset.txt",
+                "left"  : "LeftWithRatioOffsetAndWithSteeringOffset.txt"
+            }
+        }
+        ###########################################
+        
+        # videoplayback build name to pring in cli
+        self.build_name = self.args.videoplayback_build if len(self.args.videoplayback_build.split("/")) == 1 else self.args.videoplayback_build.split("/")[-1]
             
     def get_formatted_timestamp(self):
         """
@@ -339,13 +366,84 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
                                                  leftSideSteeringOffset = 0,
                                                  rightSideSteeringOffset = 0,
                                                  frontSideSteeringOffset = 0)
+        
+    def print_progress(self):
+        """
+        Utility function to print the progress of executing VideoPlayback build with the recorded video.
+        """
+        symbols = ['./','.\\']
+        while not self.progress_done.is_set():
+            for symbol in symbols:
+                sys.stdout.write(f"\r{self.progress_msg} {symbol}")
+                sys.stdout.flush()
+                time.sleep(0.5)
+        sys.stdout.write(f'\r{self.progress_msg} [Done] \n')
+        sys.stdout.flush()
+        
+    def execute_videoplayback_build(self,video_file,mode):
+        """
+        execute and generate log for given video file
+        param:
+        video_file : Path to video file
+        mode : 0->without ratio and steering offset, 1->with ratio and without steering offset , 2->with ratio and with steering offset
+        """
+
+        # get log file name for resptective camera and update SelectCameraForOfflineMode in CameraStartUpJson
+        if video_file == self.args.front_cam_video_name:
+            log_file = os.path.join(self.data_dir,self.log_file_name[mode]["front"])    
+            self.update_param_in_camera_startup_json(ParamType = "DebugParams",SelectCameraForOfflineMode = 0)
             
-    def generate_log_using_existing_build(self):
+        if video_file == self.args.right_cam_video_name:
+            log_file = os.path.join(self.data_dir,self.log_file_name[mode]["right"])
+            self.update_param_in_camera_startup_json(ParamType = "DebugParams",SelectCameraForOfflineMode = 1)
+            
+        if video_file == self.args.left_cam_video_name:
+            log_file = os.path.join(self.data_dir,self.log_file_name[mode]["left"])
+            self.update_param_in_camera_startup_json(ParamType = "DebugParams",SelectCameraForOfflineMode = 2)
+            
+        # get absolute path to video file
+        video_file = os.path.join(self.data_dir,video_file)
+        
+        # check if the video file exists #
+        if len(os.listdir(self.data_dir)) < self.args.n_cam:
+            self.logger.error(f"Only {len(os.listdir(self.data_dir))} exists out of {self.args.n_cam}")
+            
+        ########### execute videoplayback build ########################
+        # Start the progress indicator thread
+        self.progress_msg = f"{self.get_formatted_timestamp()} Executing VideoPlayback build [{self.build_name}] with {video_file}"
+        progress_thread = threading.Thread(target = self.print_progress)
+        progress_thread.start()
+        
+        cmd = f"{self.args.videoplayback_build} --offline -i {video_file} -v > {log_file} 2>&1"
+        
+        # run the command
+        process = os.system(cmd)
+        
+        # check if the process has executed and terminated successfully
+        if process == 0:
+            self.progress_done.set()
+            progress_thread.join()
+            # self.logger.info(f"Done with {os.path.join(self.data_dir,video_file)}")
+        else:
+            self.progress_done.set()
+            progress_thread.join()
+            self.logger.error(f"!!!! Error in Executing VideoPlayback Build with current {video_file} file !!!!")
+            sys.exit()
+        
+            
+    def generate_log_using_existing_build(self,mode):
         """
         generate log of ratio and steering angle using videoplayback build
+        Param:
+        mode : 0->without ratio and steering offset, 1->with ratio and without steering offset , 2->with ratio and with steering offset
         """
         # update HostCommnflag :0 and HybridSwitch : false in CameraStartUpJson before running VideoPlayback with offline videos
         self.update_param_in_camera_startup_json(ParamType = "DebugParams",HostCommnFlag = 0,HybridSwitch = False)
+        
+        # iterate over front,left and right video files in directory and execute videoplayback build and generate log files
+        for video_file in os.listdir(self.data_dir):
+            if ".mp4" in video_file:
+                self.execute_videoplayback_build(video_file,mode)
         
         
     def run_calibration(self):
@@ -383,6 +481,16 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
         
         ######## Before Executing Videoplayback build overwrite existing offsets with zero #######
         self.overwrite_existing_offset()
+        ##########################################################################################
+        
+        
+        ############### Generate Log files using VideoPlayback build #############################
+        
+        ####### Without Ratio Offset and Without Steering Offset #######
+        self.logger.info(f"########## Executing {self.build_name} without Ratio & Without Steering Offset ##########")
+        self.generate_log_using_existing_build(mode = 0)
+        ################################################################
+        
         ##########################################################################################
         
     
