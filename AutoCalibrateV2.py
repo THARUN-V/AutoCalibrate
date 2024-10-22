@@ -38,6 +38,23 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
             
         # name for backed up CameraStartUpJson
         self.bkp_camera_startup_json_name = f"CameraStartUpJson_bkp_{datetime.now().strftime('%d-%m-%y_%H-%M-%S')}.json"
+        
+        ###### create a directory to store data ######
+        # get the bot name
+        self.bot_name = socket.gethostname()
+        # remove the C from bot name
+        self.bot_name = self.bot_name.split("C")[0].strip("-")
+        self.data_dir = os.path.join(os.getcwd(),self.bot_name+"_"+"AutoCalibData"+"_"+datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+        # create directory to writer log and video 
+        os.mkdir(self.data_dir)
+        ##############################################
+        
+        ########## param for video recording ##########
+        # count to skip frames that is of green color
+        self.skip_frame_count = 3
+        # count to keep track of frames being written
+        self.current_frame_count = 1
+        ###############################################
             
     def get_formatted_timestamp(self):
         """
@@ -256,7 +273,50 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
                 
         self.logger.info(f"Mapped Camera Id's FrontCameraId : {self.current_json['CamParams'][0]['frontCameraId']} | RightCameraId : {self.current_json['CamParams'][0]['rightCameraId']} | LeftCameraId : {self.current_json['CamParams'][0]['leftCameraId']}")
         self.logger.info(f"Mapped Camera Idx FrontCameraIdx : {self.cam_name_and_index['FrontCam']} | RightCameraIdx : {self.cam_name_and_index['RightCam']} | LeftCameraIdx : {self.cam_name_and_index['LeftCam']}")
+        
+        self.logger.info("=========    Done Camera Id Mapping    =========")
+        
+        
+    def log_progress(self,message):
+        """
+        Utility function to log the progress.
+        """
+        if abs(self.current_frame_count-self.args.record_frame_count == 0):
+            sys.stdout.write(f"\r{message}")    
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+        else:
+            sys.stdout.write(f"\r{message}")
+            sys.stdout.flush()
 
+    def record_video(self):
+        """
+        utility function to record video of front, right and left for generating log file to estimate offsets.
+        """
+        
+        # initialize cam writer object
+        out = CameraWriter(self.data_dir,self.w,self.h)
+        for cam_name , cam_index in self.cam_name_and_index.items():
+            cap = cv2.VideoCapture(cam_index)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH,self.w)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT,self.h)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE,1)
+            cap.set(cv2.CAP_PROP_FPS,15)
+            
+            while self.current_frame_count <= self.args.record_frame_count:
+                ret , frame = cap.read()
+                if ret:
+                    if self.current_frame_count > self.skip_frame_count:
+                        out.write_image(cam_name,frame)
+                        
+                        #### print progress of writing frames ######
+                        self.log_progress(f"{self.get_formatted_timestamp()} Recording Video Of {cam_name} [{self.current_frame_count}/{self.args.record_frame_count} frames]")
+                        # End of, print progress of writing frames #
+                        
+                    self.current_frame_count += 1
+            self.current_frame_count = 0
+        # release the video writer objects
+        out.clear_writer()
         
     def run_calibration(self):
         """
@@ -286,6 +346,10 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
         if not self.args.skip_camera_id_mapping:
             self.detect_and_map_cam_ids()
         #######################################################
+        
+        ############ Record Video ####################
+        self.record_video()
+        ##############################################
         
         
         
