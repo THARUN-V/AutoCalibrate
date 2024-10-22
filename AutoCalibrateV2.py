@@ -329,6 +329,17 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
             os.system(f"sudo cp -r {src_dir} {dest_dir}")
         #######################
         
+    def overwrite_existing_offset(self):
+        """
+        before executing video playback build, overwrite existing offsets to zero
+        """        
+        self.update_param_in_camera_startup_json(ParamType = "CamParams",
+                                                 leftSideCameraOffset = 0,
+                                                 rightSideCameraOffset = 0,
+                                                 leftSideSteeringOffset = 0,
+                                                 rightSideSteeringOffset = 0,
+                                                 frontSideSteeringOffset = 0)
+        
     def run_calibration(self):
         """
         Main function where all the functions related to auto calibration are called in sequence.
@@ -362,7 +373,9 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
         self.record_video()
         ##############################################
         
-        
+        ######## Before Executing Videoplayback build overwrite existing offsets with zero #######
+        self.overwrite_existing_offset()
+        ##########################################################################################
         
     
 if __name__ == "__main__":
