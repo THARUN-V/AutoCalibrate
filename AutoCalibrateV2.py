@@ -339,6 +339,14 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
                                                  leftSideSteeringOffset = 0,
                                                  rightSideSteeringOffset = 0,
                                                  frontSideSteeringOffset = 0)
+            
+    def generate_log_using_existing_build(self):
+        """
+        generate log of ratio and steering angle using videoplayback build
+        """
+        # update HostCommnflag :0 and HybridSwitch : false in CameraStartUpJson before running VideoPlayback with offline videos
+        self.update_param_in_camera_startup_json(ParamType = "DebugParams",HostCommnFlag = 0,HybridSwitch = False)
+        
         
     def run_calibration(self):
         """

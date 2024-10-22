@@ -1,12 +1,15 @@
 import cv2
 import os 
+from ParseParams import *
 
-class CameraWriter:
+class CameraWriter(ParseParams):
     
     def __init__(self,
                  video_path,
                  width,
                  height):
+        
+        ParseParams.__init__(self)
         
         self.video_path = video_path
         self.width = width
@@ -14,15 +17,15 @@ class CameraWriter:
         self.fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         self.fps = 10
         
-        self.front_cam_writer = cv2.VideoWriter(os.path.join(self.video_path,"FrontCam.mp4"),
+        self.front_cam_writer = cv2.VideoWriter(os.path.join(self.video_path,self.args.front_cam_video_name),
                                                 self.fourcc,
                                                 self.fps,
                                                 (self.width,self.height))
-        self.right_cam_writer = cv2.VideoWriter(os.path.join(self.video_path,"RightCam.mp4"),
+        self.right_cam_writer = cv2.VideoWriter(os.path.join(self.video_path,self.args.right_cam_video_name),
                                                 self.fourcc,
                                                 self.fps,
                                                 (self.width,self.height))
-        self.left_cam_writer = cv2.VideoWriter(os.path.join(self.video_path,"LeftCam.mp4"),
+        self.left_cam_writer = cv2.VideoWriter(os.path.join(self.video_path,self.args.left_cam_video_name),
                                                self.fourcc,
                                                self.fps,
                                                (self.width,self.height))
