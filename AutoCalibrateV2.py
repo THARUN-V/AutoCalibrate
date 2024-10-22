@@ -181,6 +181,15 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
         # update the BotType in CameraStartUpJson
         self.update_param_in_camera_startup_json(ParamType="CamParams",BotType=bot_type)
         
+    def configure_path_width(self):
+        """
+        get PathWidth in cm from user and update in CameraStartUpJson
+        """
+        path_width_input = int(input(f"{self.get_formatted_timestamp()} Enter PathWidth [in cm]: "))
+        
+        # Update the PathWidth in CameraStartUpJson
+        self.update_param_in_camera_startup_json(ParamType = "DebugParams",PathWidth = path_width_input)
+        
     def configure_lane_colour(self):
         """
         get LaneColourToScan from user and update it in CameraStartUpJson
@@ -461,6 +470,10 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
         
         ############# Configure LaneColourToScan ################
         self.configure_lane_colour()
+        #########################################################
+        
+        ############# Configure PathWidth #######################
+        self.configure_path_width()
         #########################################################
         
         ############# configure bot placement in predefined calibration position ###########
