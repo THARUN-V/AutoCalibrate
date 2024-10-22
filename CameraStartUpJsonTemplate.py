@@ -8,7 +8,7 @@ CameraStartUpJsonTemplate = {
             "CamParams": [
                 {
                 "serial_port": "/dev/ttyAMA0",
-                "BotType": 1,
+                "BotType": 0,
                 "rightSideCameraOffset": 0,
                 "leftSideCameraOffset": 0,
                 "EnableHostRatioBasedRejection": 0,

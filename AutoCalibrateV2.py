@@ -42,7 +42,25 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
         log_level = "INFO"
         timestamp = datetime.now().strftime("%d/%m/%y %H:%M:%S")
         
-        return f"[{timestamp}, {log_level}]"    
+        return f"[{timestamp}, {log_level}]"
+    
+    def update_param_in_camera_startup_json(self,ParamType,**kwargs):
+        
+        # read the current version of CameraStartUpJson
+        with open(self.args.json_path,"r") as existing_json_path:
+            existing_json_file = json.load(existing_json_path)
+            
+        # update the required params
+        for key,val in kwargs.items():
+            existing_json_file[ParamType][0][key] = val
+                
+        # write the update verison of CameraStartUpJson
+        with open(self.args.json_path,"w") as updated_json_path:
+            json.dump(existing_json_file,updated_json_path,indent=4)
+            
+        # after updating json file, update current json file
+        with open(self.args.json_path,"r") as updated_curr_json:
+            self.current_json = json.load(updated_curr_json)
         
     def configure_camera_startup_json(self):
         """
@@ -82,21 +100,53 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
             with open(self.args.json_path,"w") as template_camera_startup_json:
                 json.dump(CameraStartUpJsonTemplate,template_camera_startup_json,indent=4)
                 
-            # get the create json file 
+            # get the created json file 
             
             with open(self.args.json_path,"r") as new_camera_startup_json:
                 self.current_json = json.load(new_camera_startup_json)
                 
             self.logger.info("############# CameraStartUpJson Not Found , Created One ##################")
+            
+    def configure_bot_type(self):
+        """
+        gets input from user and updates BotType in CameraStartUpJson
+        """
+        
+        ##### print user with available bot type and choose from #####
+        self.logger.info("+---------------------------------- Available BotType ----------------------------------+")
+        bot_type_info_table = PrettyTable()
+        bot_type_info_table.field_names = ["BotType","Info"]
+        bot_type_info_table.add_row(["1","APPU/JUMBO Bot with Camera mounted on FRP"])
+        bot_type_info_table.add_row(["2","JUMBO Bot with raised FRP and camera mounted on metal plate"])
+        print(bot_type_info_table)
+        ###############################################################
+        
+        ##### get input from user for BotType #####
+        bot_type = int(input(f"{self.get_formatted_timestamp()} Enter BotType : "))
+        
+        ## failsafe to make user choose bot_type out of available list ##
+        while bot_type not in [1,2]:
+            self.logger.info("#### please enter BotType from above Available BotType ####")
+            bot_type = int(input(f"{self.get_formatted_timestamp()} Enter BotType : "))
+        
+        # update the BotType in CameraStartUpJson
+        self.update_param_in_camera_startup_json(ParamType="CamParams",BotType=bot_type)
         
     def run_calibration(self):
         """
         Main function where all the functions related to auto calibration are called in sequence.
         """
         
-        ########### check for CameraStartUpJson #################
+        ########### Configure CameraStartUpJson #################
         self.configure_camera_startup_json()
         #########################################################
+        
+        ########### Configure BotType ###########################
+        self.configure_bot_type()
+        #########################################################
+        
+        
+        
         
     
 if __name__ == "__main__":
