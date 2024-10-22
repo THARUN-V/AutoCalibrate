@@ -48,6 +48,11 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
             with open(self.args.json_path,"w") as template_camera_startup_json:
                 json.dump(CameraStartUpJsonTemplate,template_camera_startup_json,indent=4)
                 
+            # get the create json file 
+            
+            with open(self.args.json_path,"r") as new_camera_startup_json:
+                self.current_json = json.load(new_camera_startup_json)
+                
             self.logger.info("############# CameraStartUpJson Not Found , Created One ##################")
         
     def run_calibration(self):
@@ -58,6 +63,7 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
         ########### check for CameraStartUpJson #################
         self.check_and_create_json()
         #########################################################
+        
     
 if __name__ == "__main__":
        
