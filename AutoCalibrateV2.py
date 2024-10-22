@@ -318,6 +318,17 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
         # release the video writer objects
         out.clear_writer()
         
+        #### in debug mode ####
+        ## if testing in debug mode where lane is not available in bench testing, copy the existing video from another dir and continue with rest of the logic.
+        if self.args.debug:
+            src_dir = "/home/pi/auto_calib_debug_data/"
+            dest_dir = self.data_dir
+            # shutil.copy(src_dir,dest_dir)
+            if os.path.exists(dest_dir):
+                os.system(f"sudo rm -rf {dest_dir}")
+            os.system(f"sudo cp -r {src_dir} {dest_dir}")
+        #######################
+        
     def run_calibration(self):
         """
         Main function where all the functions related to auto calibration are called in sequence.
