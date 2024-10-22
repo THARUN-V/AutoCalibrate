@@ -280,7 +280,11 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
         ####################################################################################
         
         ############# Perform Camera Id Mapping ###############
-        self.detect_and_map_cam_ids()
+        if self.args.skip_camera_id_mapping:
+            # display to user about skipping camera device id mapping
+            self.logger.info("################# Skipping Camera Device Id Mapping #################")
+        if not self.args.skip_camera_id_mapping:
+            self.detect_and_map_cam_ids()
         #######################################################
         
         
