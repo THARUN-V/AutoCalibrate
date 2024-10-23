@@ -508,17 +508,23 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
             if mode == 0:
                 # ratio and csa without offset
                 # ratio offset update in json
-                self.update_result(cam = cam,ratio_without_offset = ratio_mean,csa_without_offset = csa_mean , ratio_offset = ratio_offset)
+                self.update_result(cam = cam,ratio_without_offset = ratio_mean,ratio_offset = ratio_offset)
                 
                 # update estimated ratio offset in json
                 if cam == "right": self.update_param_in_camera_startup_json(ParamType = "CamParams",rightSideCameraOffset = ratio_offset)
                 if cam == "left" : self.update_param_in_camera_startup_json(ParamType = "CamParams",leftSideCameraOffset = ratio_offset)
                 
-            
-            
+            if mode == 1:
+                # ratio with offset and csa without offset
+                # csa offset update in json
+                self.update_result(cam = cam,csa_without_offset = csa_mean,csa_offset = csa_offset)
+                
+                # update estimated steering offset in json
+                if cam == "right": self.update_param_in_camera_startup_json(ParamType = "CamParams",rightSideSteeringOffset = csa_offset)
+                if cam == "left" : self.update_param_in_camera_startup_json(ParamType = "CamParams",leftSideSteeringOffset = csa_offset)
+                if cam == "front": self.update_param_in_camera_startup_json(ParamType = "CamParams",frontSideSteeringOffset = csa_offset)
                 
             
-        
     def run_calibration(self):
         """
         Main function where all the functions related to auto calibration are called in sequence.
@@ -572,6 +578,16 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         self.estimate_and_update_offset_in_json(mode = 0)
         self.print_result()
         #######################################################
+        
+        ##### With Ratio offset and without Steering Offset ######
+        self.logger.info(f"########## Executing {self.build_name} with Ratio & Without Steering Offset ##########")
+        self.generate_log_using_existing_build(mode = 1)
+        ##########################################################
+        
+        ##### Estimate steering offset and update in json ####
+        self.estimate_and_update_offset_in_json(mode = 1)
+        self.print_result()
+        ######################################################
         
         ##########################################################################################
         

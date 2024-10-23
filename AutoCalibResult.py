@@ -20,9 +20,15 @@ class AutoCalibResult:
         self.Right = CamResult()
         self.Left = CamResult()
         
+    def update_param(self,curr_val,updated_val):
+        
+        if curr_val == None:
+            return updated_val
+        return curr_val
+        
     def update_result(self,
                       cam,
-                      ratio_without_offset = None ,
+                      ratio_without_offset = None,
                       csa_without_offset = None,
                       ratio_with_offset = None,
                       csa_with_offset = None ,
@@ -32,26 +38,26 @@ class AutoCalibResult:
         This method updates ratio , csa and offset for respective cam.
         """
         if cam == "front":
-            self.Front.RATIO_WITHOUT_OFFSET = ratio_without_offset
-            self.Front.STEERING_ANGLE_WITHOUT_OFFSET = csa_without_offset
-            self.Front.RATIO_WITH_OFFSET = ratio_with_offset
-            self.Front.STEERING_ANGLE_WITH_OFFSET = csa_with_offset
-            self.Front.RATIO_OFFSET = ratio_offset
-            self.Front.STEERING_OFFSET = csa_offset
+            self.Front.RATIO_WITHOUT_OFFSET = self.update_param(self.Front.RATIO_WITHOUT_OFFSET,ratio_without_offset)
+            self.Front.STEERING_ANGLE_WITHOUT_OFFSET = self.update_param(self.Front.STEERING_ANGLE_WITHOUT_OFFSET,csa_without_offset)
+            self.Front.RATIO_WITH_OFFSET = self.update_param(self.Front.RATIO_WITH_OFFSET,ratio_with_offset)
+            self.Front.STEERING_ANGLE_WITH_OFFSET = self.update_param(self.Front.STEERING_ANGLE_WITH_OFFSET,csa_with_offset)
+            self.Front.RATIO_OFFSET = self.update_param(self.Front.RATIO_OFFSET,ratio_offset)
+            self.Front.STEERING_OFFSET = self.update_param(self.Front.STEERING_OFFSET,csa_offset)
         if cam == "right":
-            self.Right.RATIO_WITHOUT_OFFSET = ratio_without_offset
-            self.Right.STEERING_ANGLE_WITHOUT_OFFSET = csa_without_offset
-            self.Right.RATIO_WITH_OFFSET = ratio_with_offset
-            self.Right.STEERING_ANGLE_WITH_OFFSET = csa_with_offset
-            self.Right.RATIO_OFFSET = ratio_offset
-            self.Right.STEERING_OFFSET = csa_offset
+            self.Right.RATIO_WITHOUT_OFFSET = self.update_param(self.Right.RATIO_WITHOUT_OFFSET,ratio_without_offset)
+            self.Right.STEERING_ANGLE_WITHOUT_OFFSET = self.update_param(self.Right.STEERING_ANGLE_WITHOUT_OFFSET,csa_without_offset)
+            self.Right.RATIO_WITH_OFFSET = self.update_param(self.Right.RATIO_WITH_OFFSET,ratio_with_offset)
+            self.Right.STEERING_ANGLE_WITH_OFFSET = self.update_param(self.Right.STEERING_ANGLE_WITH_OFFSET,csa_with_offset)
+            self.Right.RATIO_OFFSET = self.update_param(self.Right.RATIO_OFFSET,ratio_offset)
+            self.Right.STEERING_OFFSET = self.update_param(self.Right.STEERING_OFFSET,csa_offset)
         if cam == "left":
-            self.Left.RATIO_WITHOUT_OFFSET = ratio_without_offset
-            self.Left.STEERING_ANGLE_WITHOUT_OFFSET = csa_without_offset
-            self.Left.RATIO_WITH_OFFSET = ratio_with_offset
-            self.Left.STEERING_ANGLE_WITH_OFFSET = csa_with_offset
-            self.Left.RATIO_OFFSET = ratio_offset
-            self.Left.STEERING_OFFSET = csa_offset
+            self.Left.RATIO_WITHOUT_OFFSET = self.update_param(self.Left.RATIO_WITHOUT_OFFSET,ratio_without_offset)
+            self.Left.STEERING_ANGLE_WITHOUT_OFFSET = self.update_param(self.Left.STEERING_ANGLE_WITHOUT_OFFSET,csa_without_offset)
+            self.Left.RATIO_WITH_OFFSET = self.update_param(self.Left.RATIO_WITH_OFFSET,ratio_with_offset)
+            self.Left.STEERING_ANGLE_WITH_OFFSET = self.update_param(self.Left.STEERING_ANGLE_WITH_OFFSET,csa_with_offset)
+            self.Left.RATIO_OFFSET = self.update_param(self.Left.RATIO_OFFSET,ratio_offset)
+            self.Left.STEERING_OFFSET = self.update_param(self.Left.STEERING_OFFSET,csa_offset)
         
     def print_result(self):
         result_table = PrettyTable()
