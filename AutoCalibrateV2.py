@@ -3,6 +3,7 @@ from MarkerDetector import ArucoMarkerDetector
 from CamWriter import CameraWriter
 from ParseParams import *
 from CameraStartUpJsonTemplate import *
+from AutoCalibResult import *
 
 import json 
 import cv2
@@ -16,13 +17,14 @@ from prettytable import PrettyTable
 import socket
 
 
-class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
+class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult):
     
     def __init__(self):
         
         ParseParams.__init__(self)
         CamContext.__init__(self)
         ArucoMarkerDetector.__init__(self,self.args.aruco_dict)
+        AutoCalibResult.__init__(self)
         
         
         ### configure seecam ###
@@ -453,7 +455,69 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
         for video_file in os.listdir(self.data_dir):
             if ".mp4" in video_file:
                 self.execute_videoplayback_build(video_file,mode)
+                
+    def get_ratio_csa_from_log_file(self,log_file_path):
+        """
+        utility function to get ratio and current steering angle from log file provided as a single value
+        """
         
+        # iterate over log file get the mean ratio from string 
+        ratio = [[float(string.split("=")[1]) for string in line.split(";") if "ratio" in string][0]
+                 for line in open(log_file_path,"r").readlines() 
+                 if ";" in line and "ratio" in line]
+        
+        ratio_mean = numpy.mean(numpy.array(ratio))
+        
+        # iterate over log file get the mean current steering angle from string
+        csa = [[float(string.split("=")[1]) for string in line.split(";") if "CSA" in string][0]
+                 for line in open(log_file_path,"r").readlines() 
+                 if ";" in line and "CSA" in line]
+        
+        csa_mean = numpy.mean(numpy.array(csa))
+        
+        return round(ratio_mean,3) , round(csa_mean,2)
+    
+    def get_ratio_and_csa_offset(self,measured_ratio,measured_csa,cam):
+        """
+        get the ratio offset and csa offset for left,right and front cam based on provided mean ratio and mean csa
+        """
+        if cam == "right":
+            return round(self.current_json["DebugParams"][0]["PathWidth"] * (self.args.target_ratio - measured_ratio),2) , round((self.args.target_steering_angle - measured_csa),2)
+        if cam == "left":
+            return round(self.current_json["DebugParams"][0]["PathWidth"]*(measured_ratio - self.args.target_ratio),2) , round((self.args.target_steering_angle - measured_csa),2)
+        if cam == "front":
+            return None , round((self.args.target_steering_angle - measured_csa),2)
+                    
+    
+    def estimate_and_update_offset_in_json(self,mode):
+        """
+        function to estimate offset from log file and update in json
+        """
+        # iterate for three cameras and estimate ratio and steering offset using generated log file
+        for cam in ["front","right","left"]:
+            log_file = os.path.join(self.data_dir,self.log_file_name[mode][cam])
+                
+            # get the mean ratio and mean csa from log file
+            ratio_mean , csa_mean = self.get_ratio_csa_from_log_file(log_file)
+            
+            # using this mean of ratio and csa , estimate the offset
+            ratio_offset , csa_offset = self.get_ratio_and_csa_offset(ratio_mean,csa_mean,cam)
+                
+                        
+            ### update estimated offset based on mode ###
+            if mode == 0:
+                # ratio and csa without offset
+                # ratio offset update in json
+                self.update_result(cam = cam,ratio_without_offset = ratio_mean,csa_without_offset = csa_mean , ratio_offset = ratio_offset)
+                
+                # update estimated ratio offset in json
+                if cam == "right": self.update_param_in_camera_startup_json(ParamType = "CamParams",rightSideCameraOffset = ratio_offset)
+                if cam == "left" : self.update_param_in_camera_startup_json(ParamType = "CamParams",leftSideCameraOffset = ratio_offset)
+                
+            
+            
+                
+            
         
     def run_calibration(self):
         """
@@ -503,6 +567,11 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector):
         self.logger.info(f"########## Executing {self.build_name} without Ratio & Without Steering Offset ##########")
         self.generate_log_using_existing_build(mode = 0)
         ################################################################
+        
+        ###### Estimate ratio offset and update in json #######
+        self.estimate_and_update_offset_in_json(mode = 0)
+        self.print_result()
+        #######################################################
         
         ##########################################################################################
         
