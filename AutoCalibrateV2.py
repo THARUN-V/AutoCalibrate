@@ -84,6 +84,11 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         
         # videoplayback build name to pring in cli
         self.build_name = self.args.videoplayback_build if len(self.args.videoplayback_build.split("/")) == 1 else self.args.videoplayback_build.split("/")[-1]
+        
+        #### steering angle without ratio offset ####
+        self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET = None
+        self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET = None
+        self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET = None
             
     def get_formatted_timestamp(self):
         """
@@ -94,6 +99,20 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         timestamp = datetime.now().strftime("%d/%m/%y %H:%M:%S")
         
         return f"[{timestamp}, {log_level}]"
+    
+    def color_text(self,text, color):
+        # Define ANSI escape codes
+        RED = "\033[91m"
+        GREEN = "\033[92m"
+        RESET = "\033[0m"  # Reset to default color
+
+        # Choose the color based on input
+        if color.lower() == 'red':
+            return f"{RED}{text}{RESET}"
+        elif color.lower() == 'green':
+            return f"{GREEN}{text}{RESET}"
+        else:
+            return text  # Return the original text if the color is not recognized
     
     def update_param_in_camera_startup_json(self,ParamType,**kwargs):
         
@@ -511,9 +530,16 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
                 self.update_result(cam = cam,ratio_without_offset = ratio_mean,ratio_offset = ratio_offset)
                 
                 # update estimated ratio offset in json
-                if cam == "right": self.update_param_in_camera_startup_json(ParamType = "CamParams",rightSideCameraOffset = ratio_offset)
-                if cam == "left" : self.update_param_in_camera_startup_json(ParamType = "CamParams",leftSideCameraOffset = ratio_offset)
+                if cam == "right": 
+                    self.update_param_in_camera_startup_json(ParamType = "CamParams",rightSideCameraOffset = ratio_offset)
+                    self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET = csa_mean
+                if cam == "left" : 
+                    self.update_param_in_camera_startup_json(ParamType = "CamParams",leftSideCameraOffset = ratio_offset)
+                    self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET = csa_mean
+                if cam == "front":
+                    self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET = csa_mean
                 
+            
             if mode == 1:
                 # ratio with offset and csa without offset
                 # csa offset update in json
@@ -528,7 +554,73 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
                 # ratio with offset and csa with offset
                 self.update_result(cam = cam,ratio_with_offset = ratio_mean,csa_with_offset = csa_mean)
                 
+                
+    def calibration_result_without_offsets(self):
+        """
+        check the ratio and steering angle before applying offsets , after check whether to consider current camera mounting.
+        """
+        #flag to keep track and make decision on printing result
+        MOUNTING_STATUS_COUNT = 0
+        
+        
+        ##### Ratio #####
+        if self.Front.RATIO_WITHOUT_OFFSET >= self.args.ratio_without_side_cam_offset_min and self.Front.RATIO_WITHOUT_OFFSET <= self.args.ratio_without_side_cam_offset_max:
+            # status of front cam in vertical position
+            FRONT_CAM_VERTICAL_POS_STATUS = self.color_text("PASS","green")
+            MOUNTING_STATUS_COUNT += 1
+        else:
+            FRONT_CAM_VERTICAL_POS_STATUS = self.color_text("FAIL","red")
+        
+        if self.Right.RATIO_WITHOUT_OFFSET >= self.args.ratio_without_side_cam_offset_min and self.Right.RATIO_WITHOUT_OFFSET <= self.args.ratio_without_side_cam_offset_max:
+            RIGHT_CAM_VERTICAL_POS_STATUS = self.color_text("PASS","green")
+            MOUNTING_STATUS_COUNT += 1
+        else:
+            RIGHT_CAM_VERTICAL_POS_STATUS = self.color_text("FAIL","red")
             
+        if self.Left.RATIO_WITHOUT_OFFSET >= self.args.ratio_without_side_cam_offset_min and self.Left.RATIO_WITHOUT_OFFSET <= self.args.ratio_without_side_cam_offset_max:
+            LEFT_CAM_VERTICAL_POS_STATUS = self.color_text("PASS","green")
+            MOUNTING_STATUS_COUNT += 1
+        else:
+            LEFT_CAM_VERTICAL_POS_STATUS = self.color_text("FAIL","red")
+        #################
+        
+        ##### Steering Angle #####
+        if self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET >= self.args.csa_without_offset_min and self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET <= self.args.csa_without_offset_max:
+            FRONT_CAM_ROTATED_POS_STATUS = self.color_text("PASS","green")
+            MOUNTING_STATUS_COUNT += 1
+        else:
+            FRONT_CAM_ROTATED_POS_STATUS = self.color_text("FAIL","red")
+        
+        if self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET >= self.args.csa_without_offset_min and self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET <= self.args.csa_without_offset_max:
+            RIGHT_CAM_ROTATED_POS_STATUS = self.color_text("PASS","green")
+            MOUNTING_STATUS_COUNT += 1
+        else:
+            RIGHT_CAM_ROTATED_POS_STATUS = self.color_text("FAIL","red")
+            
+        if self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET >= self.args.csa_without_offset_min and self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET <= self.args.csa_without_offset_max:
+            LEFT_CAM_ROTATED_POS_STATUS = self.color_text("PASS","green")
+            MOUNTING_STATUS_COUNT += 1
+        else:
+            LEFT_CAM_ROTATED_POS_STATUS = self.color_text("FAIL","red")
+        #########################
+        
+        if MOUNTING_STATUS_COUNT > 1:
+            # print auto calibration status
+            self.logger.info("###################################################")
+            self.logger.info(f"###      AutoCalibration Status : {self.color_text('FAIL','red')}          ###")
+            self.logger.info("###################################################")
+            
+            cam_mounting_witout_offset_table = PrettyTable()
+            cam_mounting_witout_offset_table.field_names = ["CamName","CamId","RatioWithoutOffset","CsaWithoutOffset","VerticalPos","RotatedPos"]
+            cam_mounting_witout_offset_table.add_row(["FrontCam",self.current_json["CamParams"][0]["frontCameraId"],self.Front.RATIO_WITHOUT_OFFSET,self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET,FRONT_CAM_VERTICAL_POS_STATUS,FRONT_CAM_ROTATED_POS_STATUS])
+            cam_mounting_witout_offset_table.add_row(["RightCam",self.current_json["CamParams"][0]["rightCameraId"],self.Right.RATIO_WITHOUT_OFFSET,self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET,RIGHT_CAM_VERTICAL_POS_STATUS,RIGHT_CAM_ROTATED_POS_STATUS])
+            cam_mounting_witout_offset_table.add_row(["LeftCam",self.current_json["CamParams"][0]["leftCameraId"],self.Left.RATIO_WITHOUT_OFFSET,self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET,LEFT_CAM_VERTICAL_POS_STATUS,LEFT_CAM_ROTATED_POS_STATUS])
+            print(cam_mounting_witout_offset_table)
+            
+            
+        # exit without proceeding further for auto calibration
+        sys.exit()
+        
     def run_calibration(self):
         """
         Main function where all the functions related to auto calibration are called in sequence.
@@ -582,6 +674,11 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         self.estimate_and_update_offset_in_json(mode = 0)
         self.print_result()
         #######################################################
+        
+        #### Before procedding further, check if the ratio and steering angle without offset lie in acceptable range ###
+        #### if ratio doesn't exist in acceptable in range, current mounting of camera in vertical (tilted position) is not acceptable ###
+        #### if steering angle doesn't exist in acceptable range, current mounting of camera in horizontal (rotated position) is not acceptable ###
+        self.calibration_result_without_offsets()
         
         ##### With Ratio offset and without Steering Offset ######
         self.logger.info(f"########## Executing {self.build_name} with Ratio & Without Steering Offset ##########")
