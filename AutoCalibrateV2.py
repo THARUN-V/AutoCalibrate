@@ -524,6 +524,10 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
                 if cam == "left" : self.update_param_in_camera_startup_json(ParamType = "CamParams",leftSideSteeringOffset = csa_offset)
                 if cam == "front": self.update_param_in_camera_startup_json(ParamType = "CamParams",frontSideSteeringOffset = csa_offset)
                 
+            if mode == 2:
+                # ratio with offset and csa with offset
+                self.update_result(cam = cam,ratio_with_offset = ratio_mean,csa_with_offset = csa_mean)
+                
             
     def run_calibration(self):
         """
@@ -586,6 +590,16 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         
         ##### Estimate steering offset and update in json ####
         self.estimate_and_update_offset_in_json(mode = 1)
+        self.print_result()
+        ######################################################
+        
+        ##### With Ratio Offset and With Steering Offset #####
+        self.logger.info(f"########## Executing {self.build_name} with Ratio & With Steering Offset ##########")
+        self.generate_log_using_existing_build(mode = 2)
+        ######################################################
+        
+        ##### Estimate steering offset and update in json ####
+        self.estimate_and_update_offset_in_json(mode = 2)
         self.print_result()
         ######################################################
         
