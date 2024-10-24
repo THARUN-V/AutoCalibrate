@@ -417,6 +417,7 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         video_file : Path to video file
         mode : 0->without ratio and steering offset, 1->with ratio and without steering offset , 2->with ratio and with steering offset
         """
+        self.progress_done.clear()
 
         # get log file name for resptective camera and update SelectCameraForOfflineMode in CameraStartUpJson
         if video_file == self.args.front_cam_video_name:
