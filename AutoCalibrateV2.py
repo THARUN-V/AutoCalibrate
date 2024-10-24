@@ -100,10 +100,11 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         
         return f"[{timestamp}, {log_level}]"
     
-    def color_text(self,text, color):
+    def color_text(self, text, color):
         # Define ANSI escape codes
         RED = "\033[91m"
         GREEN = "\033[92m"
+        BLUE = "\033[94m"  # ANSI code for blue
         RESET = "\033[0m"  # Reset to default color
 
         # Choose the color based on input
@@ -111,8 +112,11 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
             return f"{RED}{text}{RESET}"
         elif color.lower() == 'green':
             return f"{GREEN}{text}{RESET}"
+        elif color.lower() == 'blue':
+            return f"{BLUE}{text}{RESET}"  # Add support for blue
         else:
             return text  # Return the original text if the color is not recognized
+
     
     def update_param_in_camera_startup_json(self,ParamType,**kwargs):
         
@@ -617,10 +621,95 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
             cam_mounting_witout_offset_table.add_row(["RightCam",self.current_json["CamParams"][0]["rightCameraId"],self.Right.RATIO_WITHOUT_OFFSET,self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET,RIGHT_CAM_VERTICAL_POS_STATUS,RIGHT_CAM_ROTATED_POS_STATUS])
             cam_mounting_witout_offset_table.add_row(["LeftCam",self.current_json["CamParams"][0]["leftCameraId"],self.Left.RATIO_WITHOUT_OFFSET,self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET,LEFT_CAM_VERTICAL_POS_STATUS,LEFT_CAM_ROTATED_POS_STATUS])
             print(cam_mounting_witout_offset_table)
+        
+    def print_result_before_applying_offset(self):
+        """
+        gives instruction to user on adjusting camera mounting based on ratio and steering angle of camera without offset.
+        """
+        print("############################################################################################")
+        print("###############     Follow Below Instruction to Adjust Camera Mounting       ###############")
+        print("############################################################################################")
+        
+        ##### varialbe to store instruction of corresponding camera #####
+        FRONT_CAM_INSTRUCTION = "Accept Current Mounting Position" 
+        RIGHT_CAM_INSTRUCTION = "Accept Current Mounting Position"
+        LEFT_CAM_INSTRUCTION = "Accept Current Mounting Position"
+        
+        ### get the adustment to be done in mounting of camera based on ratio and steering angle without offset ###
+        ###### Front Camera ####
+        ###### Camera Movement in both upward or downward and clockwise or anticlockwise ######
+        if self.Front.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min and self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
+            FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} & Rotate {self.color_text('Clockwise','blue')}"
+        elif self.Front.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min and self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
+            FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} & Rotate {self.color_text('Anti-Clockwise','blue')}"
+        elif self.Front.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max and self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
+            FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} & Rotate {self.color_text('Clockwise','blue')}"
+        elif self.Front.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max and self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
+            FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} & Rotate {self.color_text('Anti-Clockwise','blue')}"
+        ###### Camera Movement in upwards or downwards based on ratio without offset ######
+        if self.Front.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min:
+            FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} From Current Position"
+        elif self.Front.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max:
+            FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} From Current Position"
+        ##### Camera Rotation in clockwise of anticlockwise based on steering angle without offset #####
+        if self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
+            FRONT_CAM_INSTRUCTION = f"Rotate {self.color_text('Clockwise','blue')} From Current Position"
+        elif self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
+            FRONT_CAM_INSTRUCTION = f"Rotate {self.color_text('Anti-Clockwise','blue')} From Current Position"
             
+        ##### Right Camera ####
+        if self.Right.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min and self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
+            RIGHT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} & Rotate {self.color_text('Clockwise','blue')}"
+        elif self.Right.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min and self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
+            RIGHT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} & Rotate {self.color_text('Anti-Clockwise','blue')}"
+        elif self.Right.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max and self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
+            RIGHT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} & Rotate {self.color_text('Clockwise','blue')}"
+        elif self.Right.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max and self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
+            RIGHT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} & Rotate {self.color_text('Anti-Clockwise','blue')}"
+        ###### Camera Movement in upwards or downwards based on ratio without offset ######
+        if self.Right.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min:
+            RIGHT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} From Current Position"
+        elif self.Right.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max:
+            RIGHT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} From Current Position"
+        ##### Camera Rotation in clockwise of anticlockwise based on steering angle without offset #####
+        if self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
+            RIGHT_CAM_INSTRUCTION = f"Rotate {self.color_text('Clockwise','blue')} From Current Position"
+        elif self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
+            RIGHT_CAM_INSTRUCTION = f"Rotate {self.color_text('Anti-Clockwise','blue')} From Current Position"
             
-        # exit without proceeding further for auto calibration
+        ##### Left Camera ####
+        if self.Left.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min and self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
+            LEFT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} & Rotate {self.color_text('Clockwise','blue')}"
+        elif self.Left.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min and self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
+            LEFT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} & Rotate {self.color_text('Anti-Clockwise','blue')}"
+        elif self.Left.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max and self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
+            LEFT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} & Rotate {self.color_text('Clockwise','blue')}"
+        elif self.Left.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max and self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
+            LEFT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} & Rotate {self.color_text('Anti-Clockwise','blue')}"
+        ###### Camera Movement in upwards or downwards based on ratio without offset ######
+        if self.Left.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min:
+            LEFT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} From Current Position"
+        elif self.Left.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max:
+            LEFT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} From Current Position"
+        ##### Camera Rotation in clockwise of anticlockwise based on steering angle without offset #####
+        if self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
+            LEFT_CAM_INSTRUCTION = f"Rotate {self.color_text('Clockwise','blue')} From Current Position"
+        elif self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
+            LEFT_CAM_INSTRUCTION = f"Rotate {self.color_text('Anti-Clockwise','blue')} From Current Position"
+        
+        
+        
+        # table to hold instructions for respective camera #
+        instruction_table = PrettyTable()
+        instruction_table.field_names = ["Camera","Instruction"]
+        instruction_table.add_row(["Front",FRONT_CAM_INSTRUCTION])
+        instruction_table.add_row(["Right",RIGHT_CAM_INSTRUCTION])
+        instruction_table.add_row(["Left",LEFT_CAM_INSTRUCTION])
+        print(instruction_table)
+        
+        # print and exit the code
         sys.exit()
+        
         
     def run_calibration(self):
         """
@@ -680,6 +769,9 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         #### if ratio doesn't exist in acceptable in range, current mounting of camera in vertical (tilted position) is not acceptable ###
         #### if steering angle doesn't exist in acceptable range, current mounting of camera in horizontal (rotated position) is not acceptable ###
         self.calibration_result_without_offsets()
+        
+        ##### print instruction to user for adjusting camera mounting #######
+        self.print_result_before_applying_offset()
         
         ##### With Ratio offset and without Steering Offset ######
         self.logger.info(f"########## Executing {self.build_name} with Ratio & Without Steering Offset ##########")
