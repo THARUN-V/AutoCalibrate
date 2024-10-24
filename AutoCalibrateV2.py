@@ -609,7 +609,7 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
             MOUNTING_STATUS_COUNT += 1
         #########################
         
-        if MOUNTING_STATUS_COUNT > 1:
+        if MOUNTING_STATUS_COUNT > 0:
             # print auto calibration status
             self.logger.info("###################################################")
             self.logger.info(f"###      AutoCalibration Status : {self.color_text('FAIL','red')}          ###")
@@ -713,6 +713,74 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         # print and exit the code
         sys.exit()
         
+    def print_result_after_applying_offsets(self):
+        
+        # if ratio and steering angle with offset lies in acceptable range , autocalibration is success
+        AUTO_CALIB_STATUS_WITH_OFFSETS = 0
+        # ratio with offset status #
+        FRONT_RAITO_WITH_OFFSET_STATUS = None 
+        RIGHT_RATIO_WITH_OFFSET_STATUS = None
+        LEFT_RATIO_WITH_OFFSET_STATUS = None
+        # steering angle with offset status #
+        FRONT_CSA_WITH_OFFSET_STATUS = None 
+        RIGHT_CSA_WITH_OFFSET_STATUS = None
+        LEFT_CSA_WITH_OFFSET_STATUS = None
+        
+        ##### Front Cam ####
+        # Ratio with offset #
+        if self.Front.RATIO_WITH_OFFSET >= self.args.ratio_with_side_cam_offset_min and self.Front.RATIO_WITH_OFFSET <= self.args.ratio_with_side_cam_offset_max:
+            FRONT_RAITO_WITH_OFFSET_STATUS = self.color_text("PASS","green")
+        else:
+            AUTO_CALIB_STATUS_WITH_OFFSETS += 1
+            FRONT_RAITO_WITH_OFFSET_STATUS = self.color_text("FAIL","red")
+        if self.Right.RATIO_WITH_OFFSET >= self.args.ratio_with_side_cam_offset_min and self.Right.RATIO_WITH_OFFSET <= self.args.ratio_with_side_cam_offset_max:
+            RIGHT_RATIO_WITH_OFFSET_STATUS = self.color_text("PASS","green")
+        else:
+            AUTO_CALIB_STATUS_WITH_OFFSETS += 1
+            RIGHT_RATIO_WITH_OFFSET_STATUS = self.color_text("FAIL","red")
+        if self.Left.RATIO_WITH_OFFSET >= self.args.ratio_with_side_cam_offset_min and self.Left.RATIO_WITH_OFFSET <= self.args.ratio_with_side_cam_offset_max:
+            LEFT_RATIO_WITH_OFFSET_STATUS = self.color_text("PASS","green")
+        else:
+            AUTO_CALIB_STATUS_WITH_OFFSETS += 1
+            LEFT_RATIO_WITH_OFFSET_STATUS = self.color_text("FAIL","red")
+            
+        # CSA With offset #
+        if self.Front.STEERING_ANGLE_WITH_OFFSET >= self.args.csa_with_offset_min and self.Front.STEERING_ANGLE_WITH_OFFSET <= self.args.csa_with_offset_max:
+            FRONT_CSA_WITH_OFFSET_STATUS = self.color_text("PASS","green")
+        else:
+            AUTO_CALIB_STATUS_WITH_OFFSETS += 1
+            FRONT_CSA_WITH_OFFSET_STATUS = self.color_text("FAIL","red")
+        if self.Right.STEERING_ANGLE_WITH_OFFSET >= self.args.csa_with_offset_min and self.Right.STEERING_ANGLE_WITH_OFFSET <= self.args.csa_with_offset_max:
+            RIGHT_CSA_WITH_OFFSET_STATUS = self.color_text("PASS","green")
+        else:
+            AUTO_CALIB_STATUS_WITH_OFFSETS += 1
+            RIGHT_CSA_WITH_OFFSET_STATUS = self.color_text("FAIL","red")
+        if self.Left.STEERING_ANGLE_WITH_OFFSET >= self.args.csa_with_offset_min and self.Left.STEERING_ANGLE_WITH_OFFSET <= self.args.csa_with_offset_max:
+            LEFT_CSA_WITH_OFFSET_STATUS = self.color_text("PASS","green")
+        else:
+            AUTO_CALIB_STATUS_WITH_OFFSETS += 1
+            LEFT_CSA_WITH_OFFSET_STATUS = self.color_text("FAIL","red")
+        ####################
+        
+        if AUTO_CALIB_STATUS_WITH_OFFSETS > 0:
+            self.logger.info("###################################################")
+            self.logger.info(f"###      AutoCalibration Status : {self.color_text('FAIL','red')}          ###")
+            self.logger.info("###################################################")
+            
+            auto_calib_with_offsets_table = PrettyTable()
+            auto_calib_with_offsets_table.field_names = ["Camera","RatioWithOffset","CsaWithOffset"]
+            auto_calib_with_offsets_table.add_row(["Front",FRONT_RAITO_WITH_OFFSET_STATUS,FRONT_CSA_WITH_OFFSET_STATUS])
+            auto_calib_with_offsets_table.add_row(["Right",RIGHT_RATIO_WITH_OFFSET_STATUS,RIGHT_CSA_WITH_OFFSET_STATUS])
+            auto_calib_with_offsets_table.add_row(["Left",LEFT_RATIO_WITH_OFFSET_STATUS,LEFT_CSA_WITH_OFFSET_STATUS])
+            print(auto_calib_with_offsets_table)
+            
+        else:
+            self.logger.info("###################################################")
+            self.logger.info(f"###      AutoCalibration Status : {self.color_text('PASS','green')}          ###")
+            self.logger.info("###################################################")
+            
+            self.logger.info(f"### {os.path.basename(self.args.json_path).split('.')[0]} has been updated with Ratio and Steering Offset ##")
+        
         
     def run_calibration(self):
         """
@@ -780,7 +848,7 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         
         ##### Estimate steering offset and update in json ####
         self.estimate_and_update_offset_in_json(mode = 1)
-        self.print_result()
+        # self.print_result()
         ######################################################
         
         ##### With Ratio Offset and With Steering Offset #####
@@ -790,8 +858,12 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         
         ##### Estimate steering offset and update in json ####
         self.estimate_and_update_offset_in_json(mode = 2)
-        self.print_result()
+        # self.print_result()
         ######################################################
+        
+        ##### Print status of calibration after atuo calibration with offsets ###
+        self.print_result_after_applying_offsets()
+        #########################################################################
         
         ##########################################################################################
         
