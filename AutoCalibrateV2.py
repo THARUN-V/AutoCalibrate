@@ -833,7 +833,7 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         
         ###### Estimate ratio offset and update in json #######
         self.estimate_and_update_offset_in_json(mode = 0)
-        # self.print_result()
+        self.print_result()
         #######################################################
         
         #### Before procedding further, check if the ratio and steering angle without offset lie in acceptable range ###
@@ -848,7 +848,7 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         
         ##### Estimate steering offset and update in json ####
         self.estimate_and_update_offset_in_json(mode = 1)
-        # self.print_result()
+        self.print_result()
         ######################################################
         
         ##### With Ratio Offset and With Steering Offset #####
@@ -858,7 +858,7 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         
         ##### Estimate steering offset and update in json ####
         self.estimate_and_update_offset_in_json(mode = 2)
-        # self.print_result()
+        self.print_result()
         ######################################################
         
         ##### Print status of calibration after atuo calibration with offsets ###

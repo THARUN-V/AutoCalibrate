@@ -60,15 +60,16 @@ class AutoCalibResult:
             self.Left.STEERING_OFFSET = self.update_param(self.Left.STEERING_OFFSET,csa_offset)
         
     def print_result(self):
-        result_table = PrettyTable()
-        
-        result_table.field_names = ["CamName","RatioWithoutOffset","CsaWithoutOffset","RatioOffset","CsaOffset","RatioWithOffset","CsaWithOffset"]
-        
-        result_table.add_row(["Front",self.Front.RATIO_WITHOUT_OFFSET,self.Front.STEERING_ANGLE_WITHOUT_OFFSET,self.Front.RATIO_OFFSET,self.Front.STEERING_OFFSET,self.Front.RATIO_WITH_OFFSET,self.Front.STEERING_ANGLE_WITH_OFFSET])
-        result_table.add_row(["Right",self.Right.RATIO_WITHOUT_OFFSET,self.Right.STEERING_ANGLE_WITHOUT_OFFSET,self.Right.RATIO_OFFSET,self.Right.STEERING_OFFSET,self.Right.RATIO_WITH_OFFSET,self.Right.STEERING_ANGLE_WITH_OFFSET])
-        result_table.add_row(["Left",self.Left.RATIO_WITHOUT_OFFSET,self.Left.STEERING_ANGLE_WITHOUT_OFFSET,self.Left.RATIO_OFFSET,self.Left.STEERING_OFFSET,self.Left.RATIO_WITH_OFFSET,self.Left.STEERING_ANGLE_WITH_OFFSET])
-        
-        print(result_table)
+        if self.args.debug_print:
+            result_table = PrettyTable()
+            
+            result_table.field_names = ["CamName","RatioWithoutOffset","CsaWithoutOffset","RatioOffset","CsaOffset","RatioWithOffset","CsaWithOffset"]
+            
+            result_table.add_row(["Front",self.Front.RATIO_WITHOUT_OFFSET,self.Front.STEERING_ANGLE_WITHOUT_OFFSET,self.Front.RATIO_OFFSET,self.Front.STEERING_OFFSET,self.Front.RATIO_WITH_OFFSET,self.Front.STEERING_ANGLE_WITH_OFFSET])
+            result_table.add_row(["Right",self.Right.RATIO_WITHOUT_OFFSET,self.Right.STEERING_ANGLE_WITHOUT_OFFSET,self.Right.RATIO_OFFSET,self.Right.STEERING_OFFSET,self.Right.RATIO_WITH_OFFSET,self.Right.STEERING_ANGLE_WITH_OFFSET])
+            result_table.add_row(["Left",self.Left.RATIO_WITHOUT_OFFSET,self.Left.STEERING_ANGLE_WITHOUT_OFFSET,self.Left.RATIO_OFFSET,self.Left.STEERING_OFFSET,self.Left.RATIO_WITH_OFFSET,self.Left.STEERING_ANGLE_WITH_OFFSET])
+            
+            print(result_table)
         
 if __name__ == "__main__":
     

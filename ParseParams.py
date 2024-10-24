@@ -53,6 +53,9 @@ class ParseParams:
         parser.add_argument("--front_cam_video_name",type=str,default="FrontCam.mp4",help= "Video file name for front cam")
         ##########################
         
+        ## param to print offsets in all three stages
+        parser.add_argument("--debug_print",action="store_true",help="param to print offsets in all three stages")
+        
         self.args = parser.parse_args()
         
         # resolution of camera #
