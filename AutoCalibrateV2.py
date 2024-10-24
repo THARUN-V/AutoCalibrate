@@ -572,41 +572,41 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         if self.Front.RATIO_WITHOUT_OFFSET >= self.args.ratio_without_side_cam_offset_min and self.Front.RATIO_WITHOUT_OFFSET <= self.args.ratio_without_side_cam_offset_max:
             # status of front cam in vertical position
             FRONT_CAM_VERTICAL_POS_STATUS = self.color_text("PASS","green")
-            MOUNTING_STATUS_COUNT += 1
         else:
             FRONT_CAM_VERTICAL_POS_STATUS = self.color_text("FAIL","red")
+            MOUNTING_STATUS_COUNT += 1
         
         if self.Right.RATIO_WITHOUT_OFFSET >= self.args.ratio_without_side_cam_offset_min and self.Right.RATIO_WITHOUT_OFFSET <= self.args.ratio_without_side_cam_offset_max:
             RIGHT_CAM_VERTICAL_POS_STATUS = self.color_text("PASS","green")
-            MOUNTING_STATUS_COUNT += 1
         else:
             RIGHT_CAM_VERTICAL_POS_STATUS = self.color_text("FAIL","red")
+            MOUNTING_STATUS_COUNT += 1
             
         if self.Left.RATIO_WITHOUT_OFFSET >= self.args.ratio_without_side_cam_offset_min and self.Left.RATIO_WITHOUT_OFFSET <= self.args.ratio_without_side_cam_offset_max:
             LEFT_CAM_VERTICAL_POS_STATUS = self.color_text("PASS","green")
-            MOUNTING_STATUS_COUNT += 1
         else:
             LEFT_CAM_VERTICAL_POS_STATUS = self.color_text("FAIL","red")
+            MOUNTING_STATUS_COUNT += 1
         #################
         
         ##### Steering Angle #####
         if self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET >= self.args.csa_without_offset_min and self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET <= self.args.csa_without_offset_max:
             FRONT_CAM_ROTATED_POS_STATUS = self.color_text("PASS","green")
-            MOUNTING_STATUS_COUNT += 1
         else:
             FRONT_CAM_ROTATED_POS_STATUS = self.color_text("FAIL","red")
+            MOUNTING_STATUS_COUNT += 1
         
         if self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET >= self.args.csa_without_offset_min and self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET <= self.args.csa_without_offset_max:
             RIGHT_CAM_ROTATED_POS_STATUS = self.color_text("PASS","green")
-            MOUNTING_STATUS_COUNT += 1
         else:
             RIGHT_CAM_ROTATED_POS_STATUS = self.color_text("FAIL","red")
+            MOUNTING_STATUS_COUNT += 1
             
         if self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET >= self.args.csa_without_offset_min and self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET <= self.args.csa_without_offset_max:
             LEFT_CAM_ROTATED_POS_STATUS = self.color_text("PASS","green")
-            MOUNTING_STATUS_COUNT += 1
         else:
             LEFT_CAM_ROTATED_POS_STATUS = self.color_text("FAIL","red")
+            MOUNTING_STATUS_COUNT += 1
         #########################
         
         if MOUNTING_STATUS_COUNT > 1:
@@ -621,14 +621,17 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
             cam_mounting_witout_offset_table.add_row(["RightCam",self.current_json["CamParams"][0]["rightCameraId"],self.Right.RATIO_WITHOUT_OFFSET,self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET,RIGHT_CAM_VERTICAL_POS_STATUS,RIGHT_CAM_ROTATED_POS_STATUS])
             cam_mounting_witout_offset_table.add_row(["LeftCam",self.current_json["CamParams"][0]["leftCameraId"],self.Left.RATIO_WITHOUT_OFFSET,self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET,LEFT_CAM_VERTICAL_POS_STATUS,LEFT_CAM_ROTATED_POS_STATUS])
             print(cam_mounting_witout_offset_table)
+            
+            ##### print instruction to user for adjusting camera mounting #######
+            self.print_result_before_applying_offset()
         
     def print_result_before_applying_offset(self):
         """
         gives instruction to user on adjusting camera mounting based on ratio and steering angle of camera without offset.
         """
-        print("############################################################################################")
-        print("###############     Follow Below Instruction to Adjust Camera Mounting       ###############")
-        print("############################################################################################")
+        self.logger.info("############################################################################################")
+        self.logger.info("###############     Follow Below Instruction to Adjust Camera Mounting       ###############")
+        self.logger.info("############################################################################################")
         
         ##### varialbe to store instruction of corresponding camera #####
         FRONT_CAM_INSTRUCTION = "Accept Current Mounting Position" 
@@ -762,16 +765,13 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         
         ###### Estimate ratio offset and update in json #######
         self.estimate_and_update_offset_in_json(mode = 0)
-        self.print_result()
+        # self.print_result()
         #######################################################
         
         #### Before procedding further, check if the ratio and steering angle without offset lie in acceptable range ###
         #### if ratio doesn't exist in acceptable in range, current mounting of camera in vertical (tilted position) is not acceptable ###
         #### if steering angle doesn't exist in acceptable range, current mounting of camera in horizontal (rotated position) is not acceptable ###
         self.calibration_result_without_offsets()
-        
-        ##### print instruction to user for adjusting camera mounting #######
-        self.print_result_before_applying_offset()
         
         ##### With Ratio offset and without Steering Offset ######
         self.logger.info(f"########## Executing {self.build_name} with Ratio & Without Steering Offset ##########")
