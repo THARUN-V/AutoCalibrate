@@ -718,7 +718,7 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         # if ratio and steering angle with offset lies in acceptable range , autocalibration is success
         AUTO_CALIB_STATUS_WITH_OFFSETS = 0
         # ratio with offset status #
-        FRONT_RAITO_WITH_OFFSET_STATUS = None 
+        FRONT_RATIO_WITH_OFFSET_STATUS = None 
         RIGHT_RATIO_WITH_OFFSET_STATUS = None
         LEFT_RATIO_WITH_OFFSET_STATUS = None
         # steering angle with offset status #
@@ -726,13 +726,18 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         RIGHT_CSA_WITH_OFFSET_STATUS = None
         LEFT_CSA_WITH_OFFSET_STATUS = None
         
+        # instruction 
+        FRONT_CAM_INSTRUCTION = "Accept Ratio & Steering Angle with offset"
+        RIGHT_CAM_INSTRUCTION = "Accept Ratio & Steering Angle with offset"
+        LEFT_CAM_INSTRUCTION = "Accept Ratio & Steering Angle with offset"
+        
         ##### Front Cam ####
         # Ratio with offset #
         if self.Front.RATIO_WITH_OFFSET >= self.args.ratio_with_side_cam_offset_min and self.Front.RATIO_WITH_OFFSET <= self.args.ratio_with_side_cam_offset_max:
-            FRONT_RAITO_WITH_OFFSET_STATUS = self.color_text("PASS","green")
+            FRONT_RATIO_WITH_OFFSET_STATUS = self.color_text("PASS","green")
         else:
             AUTO_CALIB_STATUS_WITH_OFFSETS += 1
-            FRONT_RAITO_WITH_OFFSET_STATUS = self.color_text("FAIL","red")
+            FRONT_RATIO_WITH_OFFSET_STATUS = self.color_text("FAIL","red")
         if self.Right.RATIO_WITH_OFFSET >= self.args.ratio_with_side_cam_offset_min and self.Right.RATIO_WITH_OFFSET <= self.args.ratio_with_side_cam_offset_max:
             RIGHT_RATIO_WITH_OFFSET_STATUS = self.color_text("PASS","green")
         else:
@@ -761,17 +766,86 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
             AUTO_CALIB_STATUS_WITH_OFFSETS += 1
             LEFT_CSA_WITH_OFFSET_STATUS = self.color_text("FAIL","red")
         ####################
+        ## instruction for individual cameras ##
+        # front #
+        if FRONT_RATIO_WITH_OFFSET_STATUS == self.color_text("FAIL","red") and FRONT_CSA_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
+            if self.Front.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min and self.Front.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
+                FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min} & Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
+            elif self.Front.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min and self.Front.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
+                FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min} & Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"
+            elif self.Front.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max and self.Front.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
+                FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max} & Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
+            elif self.Front.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max and self.Front.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
+                FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max} & Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"                
+        elif FRONT_RATIO_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
+            if self.Front.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min:
+                FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min}"
+            elif self.Front.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max:
+                FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max}"
+        elif FRONT_CSA_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
+            if self.Front.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
+                FRONT_CAM_INSTRUCTION = f"Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
+            elif self.Front.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
+                FRONT_CAM_INSTRUCTION = f"Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"
+        # right #
+        if RIGHT_RATIO_WITH_OFFSET_STATUS == self.color_text("FAIL","red") and RIGHT_CSA_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
+            if self.Right.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min and self.Right.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
+                RIGHT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min} & Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
+            elif self.Right.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min and self.Right.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
+                RIGHT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min} & Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"
+            elif self.Right.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max and self.Right.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
+                RIGHT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max} & Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
+            elif self.Right.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max and self.Right.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
+                RIGHT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max} & Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"                
+        elif RIGHT_RATIO_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
+            if self.Right.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min:
+                RIGHT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min}"
+            elif self.Right.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max:
+                RIGHT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max}"
+        elif RIGHT_CSA_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
+            if self.Right.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
+                RIGHT_CAM_INSTRUCTION = f"Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
+            elif self.Right.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
+                RIGHT_CAM_INSTRUCTION = f"Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"
+        # left #
+        if LEFT_RATIO_WITH_OFFSET_STATUS == self.color_text("FAIL","red") and LEFT_CSA_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
+            if self.Left.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min and self.Left.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
+                LEFT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min} & Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
+            elif self.Left.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min and self.Left.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
+                LEFT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min} & Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"
+            elif self.Left.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max and self.Left.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
+                LEFT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max} & Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
+            elif self.Left.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max and self.Left.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
+                LEFT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max} & Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"                
+        elif LEFT_RATIO_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
+            if self.Left.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min:
+                LEFT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min}"
+            elif self.Left.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max:
+                LEFT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max}"
+        elif LEFT_CSA_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
+            if self.Left.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
+                LEFT_CAM_INSTRUCTION = f"Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
+            elif self.Left.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
+                LEFT_CAM_INSTRUCTION = f"Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"
+        ########################################
         
         if AUTO_CALIB_STATUS_WITH_OFFSETS > 0:
             self.logger.info("###################################################")
             self.logger.info(f"###      AutoCalibration Status : {self.color_text('FAIL','red')}          ###")
             self.logger.info("###################################################")
             
+            # auto_calib_with_offsets_table = PrettyTable()
+            # auto_calib_with_offsets_table.field_names = ["Camera","RatioWithOffset","CsaWithOffset"]
+            # auto_calib_with_offsets_table.add_row(["Front",FRONT_RATIO_WITH_OFFSET_STATUS,FRONT_CSA_WITH_OFFSET_STATUS])
+            # auto_calib_with_offsets_table.add_row(["Right",RIGHT_RATIO_WITH_OFFSET_STATUS,RIGHT_CSA_WITH_OFFSET_STATUS])
+            # auto_calib_with_offsets_table.add_row(["Left",LEFT_RATIO_WITH_OFFSET_STATUS,LEFT_CSA_WITH_OFFSET_STATUS])
+            # print(auto_calib_with_offsets_table)
+            
             auto_calib_with_offsets_table = PrettyTable()
-            auto_calib_with_offsets_table.field_names = ["Camera","RatioWithOffset","CsaWithOffset"]
-            auto_calib_with_offsets_table.add_row(["Front",FRONT_RAITO_WITH_OFFSET_STATUS,FRONT_CSA_WITH_OFFSET_STATUS])
-            auto_calib_with_offsets_table.add_row(["Right",RIGHT_RATIO_WITH_OFFSET_STATUS,RIGHT_CSA_WITH_OFFSET_STATUS])
-            auto_calib_with_offsets_table.add_row(["Left",LEFT_RATIO_WITH_OFFSET_STATUS,LEFT_CSA_WITH_OFFSET_STATUS])
+            auto_calib_with_offsets_table.field_names = ["Camera","RatioWithOffset","CsaWithOffset","Instruction"]
+            auto_calib_with_offsets_table.add_row(["Front",self.Front.RATIO_WITH_OFFSET,self.Front.STEERING_ANGLE_WITH_OFFSET,FRONT_CAM_INSTRUCTION])
+            auto_calib_with_offsets_table.add_row(["Right",self.Right.RATIO_WITH_OFFSET,self.Right.STEERING_ANGLE_WITH_OFFSET,RIGHT_CAM_INSTRUCTION])
+            auto_calib_with_offsets_table.add_row(["Left",self.Left.RATIO_WITH_OFFSET,self.Left.STEERING_ANGLE_WITH_OFFSET,LEFT_CAM_INSTRUCTION])
             print(auto_calib_with_offsets_table)
             
         else:
