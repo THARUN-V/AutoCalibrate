@@ -1,126 +1,251 @@
 from CamContext import CamContext
-from CamCapture import CameraCapture
 from MarkerDetector import ArucoMarkerDetector
 from CamWriter import CameraWriter
 from ParseParams import *
-from CamCalibResultTable import *
 from CameraStartUpJsonTemplate import *
-import json
-import logging
+from AutoCalibResult import *
+
+import json 
 import cv2
 from datetime import datetime
-import os
+import os 
 import numpy
 import sys
 import threading
 import time
 from prettytable import PrettyTable
-import shutil
 import socket
 
-class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTable):
+
+class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult):
     
     def __init__(self):
         
         ParseParams.__init__(self)
         CamContext.__init__(self)
         ArucoMarkerDetector.__init__(self,self.args.aruco_dict)
-        CamCalibResultTable.__init__(self)
+        AutoCalibResult.__init__(self)
+        
+        
+        ### configure seecam ###
+        self.configure_seecams()
+        ########################
+        
+        self.current_json = None
         
         # check if all the required params are provided from cli
         # else print the appropriate log and exit.
         if not self.check_params():
-            sys.exit()    
+            sys.exit()
             
-        ########### check if json file exists ##################
+        # name for backed up CameraStartUpJson
+        self.bkp_camera_startup_json_name = f"CameraStartUpJson_bkp_{datetime.now().strftime('%d-%m-%y_%H-%M-%S')}.json"
+        
+        ###### create a directory to store data ######
+        # get the bot name
+        self.bot_name = socket.gethostname()
+        # remove the C from bot name
+        self.bot_name = self.bot_name.split("C")[0].strip("-")
+        self.data_dir = os.path.join(os.getcwd(),self.bot_name+"_"+"AutoCalibData"+"_"+datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+        # create directory to writer log and video 
+        os.mkdir(self.data_dir)
+        ##############################################
+        
+        ########## param for video recording ##########
+        # count to skip frames that is of green color
+        self.skip_frame_count = 3
+        # count to keep track of frames being written
+        self.current_frame_count = 1
+        ###############################################
+        
+        # flag to indicate the progress of executing video playback with recorded video
+        self.progress_done = threading.Event()
+        self.progress_msg = None
+        
+        ############ log file names ###############
+        self.log_file_name = {
+            0 : {
+                "front" : "FrontWithoutRatioOffsetAndWithoutSteeringOffset.txt",
+                "right" : "RightWithoutRatioOffsetAndWithoutSteeringOffset.txt",
+                "left"  : "LeftWithoutRatioOffsetAndWithoutSteeringOffset.txt"
+            },
+            1 : {
+                "front" : "FrontWithRatioOffsetAndWithoutSteeringOffset.txt",
+                "right" : "RightWithRatioOffsetAndWithoutSteeringOffset.txt",
+                "left"  : "LeftWithRatioOffsetAndWithoutSteeringOffset.txt",
+            },
+            2 : {
+                "front" : "FrontWithRatioOffsetAndWithSteeringOffset.txt",
+                "right" : "RightWithRatioOffsetAndWithSteeringOffset.txt",
+                "left"  : "LeftWithRatioOffsetAndWithSteeringOffset.txt"
+            }
+        }
+        ###########################################
+        
+        # videoplayback build name to pring in cli
+        self.build_name = self.args.videoplayback_build if len(self.args.videoplayback_build.split("/")) == 1 else self.args.videoplayback_build.split("/")[-1]
+        
+        #### steering angle without ratio offset ####
+        self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET = None
+        self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET = None
+        self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET = None
+            
+    def get_formatted_timestamp(self):
+        """
+        Utility function to add formatted string with time stamp and log level, while taking user input.
+        """
+        
+        log_level = "INFO"
+        timestamp = datetime.now().strftime("%d/%m/%y %H:%M:%S")
+        
+        return f"[{timestamp}, {log_level}]"
+    
+    def color_text(self, text, color):
+        # Define ANSI escape codes
+        RED = "\033[91m"
+        GREEN = "\033[92m"
+        BLUE = "\033[94m"  # ANSI code for blue
+        RESET = "\033[0m"  # Reset to default color
+
+        # Choose the color based on input
+        if color.lower() == 'red':
+            return f"{RED}{text}{RESET}"
+        elif color.lower() == 'green':
+            return f"{GREEN}{text}{RESET}"
+        elif color.lower() == 'blue':
+            return f"{BLUE}{text}{RESET}"  # Add support for blue
+        else:
+            return text  # Return the original text if the color is not recognized
+
+    
+    def update_param_in_camera_startup_json(self,ParamType,**kwargs):
+        
+        # read the current version of CameraStartUpJson
+        with open(self.args.json_path,"r") as existing_json_path:
+            existing_json_file = json.load(existing_json_path)
+            
+        # update the required params
+        for key,val in kwargs.items():
+            existing_json_file[ParamType][0][key] = val
+                
+        # write the update verison of CameraStartUpJson
+        with open(self.args.json_path,"w") as updated_json_path:
+            json.dump(existing_json_file,updated_json_path,indent=4)
+            
+        # after updating json file, update current json file
+        with open(self.args.json_path,"r") as updated_curr_json:
+            self.current_json = json.load(updated_curr_json)
+        
+    def configure_camera_startup_json(self):
+        """
+        This function checks for CameraStartUpJon.
+        if CameraStartUpJson is present take the current CameraStartUpJson
+        else create one with template CameraStartUpJson
+        """
         try:
-            with open(self.args.json_path,"r") as existing_json_file:
-                self.current_json = json.load(existing_json_file)
-            # if json file already exist#
-            ########## Prompt the user regarding overwritting of current json file and instruct the user to take backup of current json file ################
+            
+            with open(self.args.json_path,"r") as camera_startup_json:
+                self.current_json = json.load(camera_startup_json)
+                
+            # if CameraStartUpJson is already present ask the user, if it has to backed up
             self.logger.info("**** This Script overwrites the current json file for updating params , Take backup of current json file before proceeding if needed ****")
-            # choice = input(f"{self.get_formatted_timestamp()} Enter y,to proceed , n to exit : ")
+            
             bkp_choice = input(f"{self.get_formatted_timestamp()} Enter y to take backup , n to skip : ")
             
+            # while taking input, check for proper input 
+            while bkp_choice not in ["y","n"]:
+                self.logger.info("######## Please provide y or n , to take backup of current CameraStartUpJson ########")
+                bkp_choice = input(f"{self.get_formatted_timestamp()} Enter y to take backup , n to skip : ")
+            
+            # if yes take backup of current CameraStartUpJson by copying it with different name
+            # the backed up CameraStartUpJson will be saved as CameraStartUpJson_bkp_<current_date_and_time>
             if bkp_choice == "y":
-                # create a bkp of current json file
-                bkp_json_path = f'CameraStartUpJson_bkp_{datetime.now().strftime("%d-%m-%y_%H-%M-%S")}.json' 
-                with open(bkp_json_path,"w") as bkp_json:
-                    json.dump(self.current_json,bkp_json,indent = 4)
-                self.logger.info(f"Successfully backed up current json at {bkp_json_path}")
-                
-                # overwirte the existing json file with template json file
-                with open(self.args.json_path,"w") as template_json:
-                    json.dump(CameraStartUpJsonTemplate,template_json,indent=4)    
-                    
-                # read the overwritten json as current json for modifying params based on calibration
-                with open(self.args.json_path,"r") as existing_json_file:
-                    self.current_json = json.load(existing_json_file)
-                    
+                with open(self.bkp_camera_startup_json_name,"w") as bkp_camera_startup_json:
+                    json.dump(self.current_json,bkp_camera_startup_json,indent=4)
+                # log the msg regarding successful backup of current CameraStartUpJson
+                self.logger.info(f"Successfully backed up current CameraStartUpjson at {self.bkp_camera_startup_json_name}")
             if bkp_choice == "n":
                 pass
-            ####### End of, Prompt the user regarding overwritting of current json file and instruct the user to take backup of current json file ###########
+                
+                
         except FileNotFoundError:
-            self.logger.info("#### CameraStartUpJson not found, creating a template CameraStartUpJson ###")
-            with open(self.args.json_path,"w") as template_json:
-                json.dump(CameraStartUpJsonTemplate,template_json,indent=4)
+            
+            # create a template CameraStartUpJson
+            with open(self.args.json_path,"w") as template_camera_startup_json:
+                json.dump(CameraStartUpJsonTemplate,template_camera_startup_json,indent=4)
                 
-            # create and open the template json file
-            with open(self.args.json_path,"r") as existing_json_file:
-                self.current_json = json.load(existing_json_file)
+            # get the created json file 
+            
+            with open(self.args.json_path,"r") as new_camera_startup_json:
+                self.current_json = json.load(new_camera_startup_json)
                 
-        #################### Ask the user about BotType #########################################
-        self.logger.info("++++++++++++++++ Available BotType ++++++++++++++++")
-        ## print the available bot type to user to pick out of them ##
+            self.logger.info("############# CameraStartUpJson Not Found , Created One ##################")
+            
+    def configure_bot_type(self):
+        """
+        gets input from user and updates BotType in CameraStartUpJson
+        """
+        
+        ##### print user with available bot type and choose from #####
+        self.logger.info("+---------------------------------- Available BotType ----------------------------------+")
         bot_type_info_table = PrettyTable()
         bot_type_info_table.field_names = ["BotType","Info"]
         bot_type_info_table.add_row(["1","APPU/JUMBO Bot with Camera mounted on FRP"])
         bot_type_info_table.add_row(["2","JUMBO Bot with raised FRP and camera mounted on metal plate"])
         print(bot_type_info_table)
-        ## End of print the available bot type to user to pick out of them ##
-        ## Take the input from user ##
+        ###############################################################
+        
+        ##### get input from user for BotType #####
         bot_type = int(input(f"{self.get_formatted_timestamp()} Enter BotType : "))
+        
         ## failsafe to make user choose bot_type out of available list ##
         while bot_type not in [1,2]:
-            self.logger.info("==> please enter BotType from above Available BotType <==")
+            self.logger.info("#### please enter BotType from above Available BotType ####")
             bot_type = int(input(f"{self.get_formatted_timestamp()} Enter BotType : "))
-        ## End of ,failsafe to make user choose bot_type out of available list ##
-        ## open json file and update this param in json file ##
-        with open(self.args.json_path,"r") as bot_type_json_file:
-            update_bot_type_json = json.load(bot_type_json_file)
-        update_bot_type_json["CamParams"][0]["BotType"] = bot_type
-        ## update the BotType in json file
-        with open(self.args.json_path,"w") as updated_bot_type_json:
-            json.dump(update_bot_type_json,updated_bot_type_json,indent=4)
-        ############# End of Ask the user about BotType #########################################
         
+        # update the BotType in CameraStartUpJson
+        self.update_param_in_camera_startup_json(ParamType="CamParams",BotType=bot_type)
         
-        ################# lane color and path width ###############################
-        with open(self.args.json_path,"r") as json_file:
-            lane_color_json_file = json.load(json_file)
-        LaneColorInput = int(input(f"{self.get_formatted_timestamp()} Enter LaneColor : "))
-        lane_color_json_file["CamParams"][0]["LaneColourToScan"] = LaneColorInput
-        with open(self.args.json_path,"w") as updated_lane_color_json_file:
-            json.dump(lane_color_json_file,updated_lane_color_json_file,indent=4)
+    def configure_path_width(self):
+        """
+        get PathWidth in cm from user and update in CameraStartUpJson
+        """
+        path_width_input = int(input(f"{self.get_formatted_timestamp()} Enter PathWidth [in cm]: "))
+        
+        # Update the PathWidth in CameraStartUpJson
+        self.update_param_in_camera_startup_json(ParamType = "DebugParams",PathWidth = path_width_input)
+        
+    def configure_lane_colour(self):
+        """
+        get LaneColourToScan from user and update it in CameraStartUpJson
+        """
+        lane_colour_input = int(input(f"{self.get_formatted_timestamp()} Enter LaneColor : "))
+        
+        # update the lane colour in CameraStartUpJson
+        self.update_param_in_camera_startup_json(ParamType="CamParams",LaneColourToScan=lane_colour_input)
+        
+    def configue_bot_placement(self):
+        """
+        get conformation from user regarding, whether the bot is placed and it's good to continue auto calibration.
+        """
+        bot_placement_input = input(f"{self.get_formatted_timestamp()} Enter y when BOT is positioned properly [predefined calibration position] , n to exit : ")
+        
+        while bot_placement_input not in ["y","n"]:
+            self.logger.info("########### Please provide y or n to proceed for AutoCalibration ###########")
+            bot_placement_input = input(f"{self.get_formatted_timestamp()} Enter y when BOT is positioned properly [predefined calibration position] , n to exit : ")
             
-        with open(self.args.json_path,"r") as json_file:
-            path_width_json_file = json.load(json_file)
-        PathWidthInput = int(input(f"{self.get_formatted_timestamp()} Enter PathWidth [in cm]: "))
-        path_width_json_file["DebugParams"][0]["PathWidth"] = PathWidthInput
-        with open(self.args.json_path,"w") as updated_path_width_json_file:
-            json.dump(path_width_json_file,updated_path_width_json_file,indent=4)
+        if bot_placement_input == "y" : pass
+        if bot_placement_input == "n" : sys.exit()
         
-        ###########################################################################
-            
-        ######### Instruct the user asking if the bot is palced in predefined postion, and whether to proceed for calibartion ##########
-        choice = input(f"{self.get_formatted_timestamp()} Enter y when BOT is positioned properly [predefined calibration position] , n to exit : ")
         
-        if choice == "y": pass
-        if choice == "n": sys.exit()
-        ##### End of, Instruct the user asking if the bot is palced in predefined postion, and whether to proceed for calibartion ######
+    def configure_seecams(self):
+        """
+        1. scans and gets the serial number of seecam connected.
+        2. if no cam is connected, exists the code by displaying log
+        3. if number of connected cam and configured number of cam doesn't match , program exists with error msg.
+        4. maintains a dict to store camera name and its serial number
+        """
         
-        ########### End of , check if json file exists ##################
-            
         # scan the camera and get camera serial numbers
         self.see_cams = self.get_seecam()
         
@@ -140,124 +265,12 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
             "LeftCam":None
         }
         
-        # path for video file to store
-        
-        # get the bot name
-        self.bot_name = socket.gethostname()
-        # remove the C from bot name
-        self.bot_name = self.bot_name.split("C")[0].strip("-")
-        
-        # count to skip frames that is of green color
-        self.skip_frame_count = 3
-        # count to keep track of frames being written
-        self.current_frame_count = 1
-        # directory to store video and log files
-        self.data_dir = os.path.join(os.getcwd(),self.bot_name+"_"+"AutoCalibData"+"_"+datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
-        # create directory to writer log and video 
-        os.mkdir(self.data_dir)
-        
-        # flag to print progress
-        self.first_prog_msg = True
-        
-        # flag to indicate the progress of executing video playback with recorded video
-        self.progress_done = threading.Event()
-        self.progress_msg = None
-        
-        # videoplayback build name to pring in cli
-        self.build_name = self.args.videoplayback_build if len(self.args.videoplayback_build.split("/")) == 1 else self.args.videoplayback_build.split("/")[-1]
-        
-            
-    def color_text(self,text, color):
-        # Define ANSI escape codes
-        RED = "\033[91m"
-        GREEN = "\033[92m"
-        RESET = "\033[0m"  # Reset to default color
-
-        # Choose the color based on input
-        if color.lower() == 'red':
-            return f"{RED}{text}{RESET}"
-        elif color.lower() == 'green':
-            return f"{GREEN}{text}{RESET}"
-        else:
-            return text  # Return the original text if the color is not recognized
-        
-    
-    def print_pretty_table(self):
-        
-        print(f"============================================================== {self.bot_name} ==============================================================")
-        
-        # check for pass or fail based on ratio and steering angle, without offsets
-        ########## RIGHT CAMERA ##############
-        if not (self.RightCamRow[self.RATIO_WITHOUT_OFFSET_IDX] >= self.args.ratio_without_side_cam_offset_min and self.RightCamRow[self.RATIO_WITHOUT_OFFSET_IDX] <= self.args.ratio_without_side_cam_offset_max):
-            self.RightCamRow[self.RESULT_CAM_TILT_IDX] = self.color_text("FAIL","red")
-        else:
-            self.RightCamRow[self.RESULT_CAM_TILT_IDX] = self.color_text("PASS","green")
-        if not (self.RightCamRow[self.CSA_WITHOUT_OFFSET_IDX] >= self.args.csa_without_offset_min and self.RightCamRow[self.CSA_WITHOUT_OFFSET_IDX] <= self.args.csa_without_offset_max):
-            self.RightCamRow[self.RESULT_CAM_ROTATE_IDX] = self.color_text("FAIL","red")
-        else:
-            self.RightCamRow[self.RESULT_CAM_ROTATE_IDX] = self.color_text("PASS","green")
-        
-        ######################################
-        
-        ########### LEFT CAMERA ######################
-        if not(self.LeftCamRow[self.RATIO_WITHOUT_OFFSET_IDX] >= self.args.ratio_without_side_cam_offset_min and self.LeftCamRow[self.RATIO_WITHOUT_OFFSET_IDX] <= self.args.ratio_without_side_cam_offset_max):
-            self.LeftCamRow[self.RESULT_CAM_TILT_IDX] = self.color_text("FAIL","red")
-        else:
-            self.LeftCamRow[self.RESULT_CAM_TILT_IDX] = self.color_text("PASS","green")
-        if not(self.LeftCamRow[self.CSA_WITHOUT_OFFSET_IDX] >= self.args.csa_without_offset_min and self.LeftCamRow[self.CSA_WITHOUT_OFFSET_IDX] <= self.args.csa_without_offset_max):
-            self.LeftCamRow[self.RESULT_CAM_ROTATE_IDX] = self.color_text("FAIL","red")
-        else:
-            self.LeftCamRow[self.RESULT_CAM_ROTATE_IDX] = self.color_text("PASS","green")
-        ##############################################
-        
-        ############# FRONT CAM #########################
-        if not(self.FrontCamRow[self.RATIO_WITHOUT_OFFSET_IDX] >= self.args.ratio_without_side_cam_offset_min and self.FrontCamRow[self.RATIO_WITHOUT_OFFSET_IDX] <= self.args.ratio_without_side_cam_offset_max):
-            self.FrontCamRow[self.RESULT_CAM_TILT_IDX] = self.color_text("FAIL","red")
-        else:
-            self.FrontCamRow[self.RESULT_CAM_TILT_IDX] = self.color_text("PASS","green")
-        if not(self.FrontCamRow[self.CSA_WITHOUT_OFFSET_IDX] >= self.args.csa_without_offset_min and self.FrontCamRow[self.CSA_WITHOUT_OFFSET_IDX] <= self.args.csa_without_offset_max):
-            self.FrontCamRow[self.RESULT_CAM_ROTATE_IDX] = self.color_text("FAIL","red")
-        else:
-            self.FrontCamRow[self.RESULT_CAM_ROTATE_IDX] = self.color_text("PASS","green")
-        #################################################
-        
-        
-        ######### Check if , ratio and csa with offset are in acceptable range ##########
-        ####### check for ratio ##########
-        if not (self.RightCamRow[self.RATIO_WITH_OFFSET_IDX] >= self.args.ratio_with_side_cam_offset_min and self.RightCamRow[self.RATIO_WITH_OFFSET_IDX] <= self.args.ratio_with_side_cam_offset_max):
-            self.RightCamRow[self.RATIO_WITH_OFFSET_ACCEPTABLE_IDX] = self.color_text("FAIL","red")
-        else:
-            self.RightCamRow[self.RATIO_WITH_OFFSET_ACCEPTABLE_IDX] = self.color_text("PASS","green")
-        if not (self.LeftCamRow[self.RATIO_WITH_OFFSET_IDX] >= self.args.ratio_with_side_cam_offset_min and self.LeftCamRow[self.RATIO_WITH_OFFSET_IDX] <= self.args.ratio_with_side_cam_offset_max):
-            self.LeftCamRow[self.RATIO_WITH_OFFSET_ACCEPTABLE_IDX] = self.color_text("FAIL","red")
-        else:
-            self.LeftCamRow[self.RATIO_WITH_OFFSET_ACCEPTABLE_IDX] = self.color_text("PASS","green")
-            
-        ### front cam doesnt have ratio offset ###
-        self.FrontCamRow[self.RATIO_WITH_OFFSET_ACCEPTABLE_IDX] = "-"
-        
-        ####### check for steering angle ######
-        if not (self.RightCamRow[self.CSA_WITH_OFFSET_IDX] >= self.args.csa_with_offset_min and self.RightCamRow[self.CSA_WITH_OFFSET_IDX] <= self.args.csa_with_offset_max):
-            self.RightCamRow[self.CSA_WITH_OFFSET_ACCEPTABLE_IDX] = self.color_text("FAIL","red")
-        else:
-            self.RightCamRow[self.CSA_WITH_OFFSET_ACCEPTABLE_IDX] = self.color_text("PASS","green")
-        if not (self.LeftCamRow[self.CSA_WITH_OFFSET_IDX] >= self.args.csa_with_offset_min and self.LeftCamRow[self.CSA_WITH_OFFSET_IDX] <= self.args.csa_with_offset_max):
-            self.LeftCamRow[self.CSA_WITH_OFFSET_ACCEPTABLE_IDX] = self.color_text("FAIL","red")
-        else:
-            self.LeftCamRow[self.CSA_WITH_OFFSET_ACCEPTABLE_IDX] = self.color_text("PASS","green")
-        if not(self.FrontCamRow[self.CSA_WITH_OFFSET_IDX] >= self.args.csa_with_offset_min and self.FrontCamRow[self.CSA_WITH_OFFSET_IDX] <= self.args.csa_with_offset_max):
-            self.FrontCamRow[self.CSA_WITH_OFFSET_ACCEPTABLE_IDX] = self.color_text("FAIL","red")
-        else:
-            self.FrontCamRow[self.CSA_WITH_OFFSET_ACCEPTABLE_IDX] = self.color_text("PASS","green")
-        
-        #################################################################################
-
-        self.update_table()
-            
     def detect_and_map_cam_ids(self):
         """
         Function to detect markers in image and map the camera ids.
         """
+        self.logger.info("========= Performing Camera Id Mapping =========")
+        
         # mainatin predefined markers to avoid false detection
         predefined_marker_ids = [self.args.front_cam_marker_id,self.args.right_cam_marker_id,self.args.left_cam_marker_id]
         
@@ -290,7 +303,6 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                 ret , frame = cap.read()
                 
                 if ret:
-                    # cv2.imwrite("test_auto_calib.png",frame)
                     # detect the marker in current camera
                     _ , ids , _ , _ = self.get_marker_id(frame)
                     if ids != None:
@@ -302,26 +314,42 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
                         if current_marker_id in predefined_marker_ids:
                             if current_marker_id == self.args.front_cam_marker_id:
                                 self.logger.info(f"Detected Marker Id {current_marker_id} in {cam.serial_number}")
-                                self.current_json["CamParams"][0]["frontCameraId"] = cam.serial_number
+                                self.update_param_in_camera_startup_json(ParamType="CamParams",frontCameraId=cam.serial_number)
                                 self.cam_name_and_index["FrontCam"] = cam.camera_index
-                                self.FrontCamRow[self.CAM_ID_IDX] = cam.serial_number
                                 id_detected = True
                             if current_marker_id == self.args.right_cam_marker_id:
                                 self.logger.info(f"Detected Marker Id {current_marker_id} in {cam.serial_number}")
-                                self.current_json["CamParams"][0]["rightCameraId"] = cam.serial_number
+                                self.update_param_in_camera_startup_json(ParamType="CamParams",rightCameraId=cam.serial_number)
                                 self.cam_name_and_index["RightCam"] = cam.camera_index
-                                self.RightCamRow[self.CAM_ID_IDX] = cam.serial_number
                                 id_detected = True
                             if current_marker_id == self.args.left_cam_marker_id:
                                 self.logger.info(f"Detected Marker Id {current_marker_id} in {cam.serial_number}")
-                                self.current_json["CamParams"][0]["leftCameraId"] = cam.serial_number
+                                self.update_param_in_camera_startup_json(ParamType="CamParams",leftCameraId=cam.serial_number)
                                 self.cam_name_and_index["LeftCam"] = cam.camera_index
-                                self.LeftCamRow[self.CAM_ID_IDX] = cam.serial_number
                                 id_detected = True
                             
             if id_detected:
                 cap.release()
                 
+                
+        self.logger.info(f"Mapped Camera Id's FrontCameraId : {self.current_json['CamParams'][0]['frontCameraId']} | RightCameraId : {self.current_json['CamParams'][0]['rightCameraId']} | LeftCameraId : {self.current_json['CamParams'][0]['leftCameraId']}")
+        self.logger.info(f"Mapped Camera Idx FrontCameraIdx : {self.cam_name_and_index['FrontCam']} | RightCameraIdx : {self.cam_name_and_index['RightCam']} | LeftCameraIdx : {self.cam_name_and_index['LeftCam']}")
+        
+        self.logger.info("=========    Done Camera Id Mapping    =========")
+        
+        
+    def log_progress(self,message):
+        """
+        Utility function to log the progress.
+        """
+        if abs(self.current_frame_count-self.args.record_frame_count == 0):
+            sys.stdout.write(f"\r{message}")    
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+        else:
+            sys.stdout.write(f"\r{message}")
+            sys.stdout.flush()
+
     def record_video(self):
         """
         utility function to record video of front, right and left for generating log file to estimate offsets.
@@ -351,193 +379,107 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         # release the video writer objects
         out.clear_writer()
         
-    def generate_log_using_existing_build(self):
+        #### in debug mode ####
+        ## if testing in debug mode where lane is not available in bench testing, copy the existing video from another dir and continue with rest of the logic.
+        if self.args.debug:
+            src_dir = "/home/pi/auto_calib_debug_data/"
+            dest_dir = self.data_dir
+            # shutil.copy(src_dir,dest_dir)
+            if os.path.exists(dest_dir):
+                os.system(f"sudo rm -rf {dest_dir}")
+            os.system(f"sudo cp -r {src_dir} {dest_dir}")
+        #######################
+        
+    def overwrite_existing_offset(self):
         """
-        Utility function to genreate log to get ratio and steering angle, using the existing build.
+        before executing video playback build, overwrite existing offsets to zero
+        """        
+        self.update_param_in_camera_startup_json(ParamType = "CamParams",
+                                                 leftSideCameraOffset = 0,
+                                                 rightSideCameraOffset = 0,
+                                                 leftSideSteeringOffset = 0,
+                                                 rightSideSteeringOffset = 0,
+                                                 frontSideSteeringOffset = 0)
+        
+    def print_progress(self):
         """
-                
+        Utility function to print the progress of executing VideoPlayback build with the recorded video.
+        """
+        symbols = ['./','.\\']
+        while not self.progress_done.is_set():
+            for symbol in symbols:
+                sys.stdout.write(f"\r{self.progress_msg} {symbol}")
+                sys.stdout.flush()
+                time.sleep(0.5)
+        sys.stdout.write(f'\r{self.progress_msg} [Done] \n')
+        sys.stdout.flush()
+        
+    def execute_videoplayback_build(self,video_file,mode):
+        """
+        execute and generate log for given video file
+        param:
+        video_file : Path to video file
+        mode : 0->without ratio and steering offset, 1->with ratio and without steering offset , 2->with ratio and with steering offset
+        """
+        self.progress_done.clear()
+
+        # get log file name for resptective camera and update SelectCameraForOfflineMode in CameraStartUpJson
+        if video_file == self.args.front_cam_video_name:
+            log_file = os.path.join(self.data_dir,self.log_file_name[mode]["front"])    
+            self.update_param_in_camera_startup_json(ParamType = "DebugParams",SelectCameraForOfflineMode = 0)
+            
+        if video_file == self.args.right_cam_video_name:
+            log_file = os.path.join(self.data_dir,self.log_file_name[mode]["right"])
+            self.update_param_in_camera_startup_json(ParamType = "DebugParams",SelectCameraForOfflineMode = 1)
+            
+        if video_file == self.args.left_cam_video_name:
+            log_file = os.path.join(self.data_dir,self.log_file_name[mode]["left"])
+            self.update_param_in_camera_startup_json(ParamType = "DebugParams",SelectCameraForOfflineMode = 2)
+            
+        # get absolute path to video file
+        video_file = os.path.join(self.data_dir,video_file)
+        
         # check if the video file exists #
         if len(os.listdir(self.data_dir)) < self.args.n_cam:
             self.logger.error(f"Only {len(os.listdir(self.data_dir))} exists out of {self.args.n_cam}")
+            
+        ########### execute videoplayback build ########################
+        # Start the progress indicator thread
+        self.progress_msg = f"{self.get_formatted_timestamp()} Executing VideoPlayback build [{self.build_name}] with {video_file}"
+        progress_thread = threading.Thread(target = self.print_progress)
+        progress_thread.start()
         
-        # self.logger.info(f"Executing VideoPlayback build [{self.build_name}] with lefSideCameraOffset : {self.current_json['CamParams'][0]['leftSideCameraOffset']} , rightCameraOffset : {self.current_json['CamParams'][0]['rightSideCameraOffset']}")
+        cmd = f"{self.args.videoplayback_build} --offline -i {video_file} -v > {log_file} 2>&1"
         
-        # before executing, check if HostCommunication and HybridSwitch is set to 0 and false
-        if self.current_json["DebugParams"][0]["HostCommnFlag"] != 0 and self.current_json["DebugParams"][0]["HybridSwitch"] != False:
-            self.current_json["DebugParams"][0]["HostCommnFlag"] = 0
-            self.current_json["DebugParams"][0]["HybridSwitch"] = False
-            # update the params in json file before executing videoplayback script
-            with open(self.args.json_path,"w") as updated_json:
-                json.dump(self.current_json,updated_json,indent = 4)
+        # run the command
+        process = os.system(cmd)
         
-        # iterater over the video file and generate log 
-        for video_file in os.listdir(self.data_dir):
-            self.progress_done.clear()
-            if ".mp4" in video_file:    
-                # set the flag for changing camera to left or right in CameraStartUpJson 
-                if "Right" in video_file:
-                    # set SelectCameraForOfflineMode to 1
-                    self.current_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 1
-                    # update in json before executing videoplayback build
-                    with open(self.args.json_path,"w") as updated_json:
-                        json.dump(self.current_json,updated_json,indent = 4)
-                if "Left" in video_file:
-                    # set SelectCameraForOfflineMode to 2
-                    self.current_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 2
-                    # update in json before executing videoplayback build
-                    with open(self.args.json_path,"w") as updated_json:
-                        json.dump(self.current_json,updated_json,indent = 4)
-                        
-                if "Front" in video_file:
-                    # set SelectCameraForOfflineMode to 0
-                    self.current_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 0
-                    # update in json before executing videoplayback build
-                    with open(self.args.json_path,"w") as updated_json:
-                        json.dump(self.current_json,updated_json,indent = 4)
-                        
-                # command to run videoplayback build
-                log_file = os.path.join(self.data_dir,video_file.split(".mp4")[0]+"Log.txt")
-                
-                # Start the progress indicator thread
-                self.progress_msg = f"{self.get_formatted_timestamp()} Executing VideoPlayback build [{self.build_name}] with {video_file}"
-                progress_thread = threading.Thread(target = self.print_progress)
-                progress_thread.start()
-                
-                cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {log_file} 2>&1"
-                
-                # run the command
-                process = os.system(cmd)
-                
-                # check if the process has executed and terminated successfully
-                if process == 0:
-                    self.progress_done.set()
-                    progress_thread.join()
-                    # self.logger.info(f"Done with {os.path.join(self.data_dir,video_file)}")
-                else:
-                    self.progress_done.set()
-                    progress_thread.join()
-                    self.logger.error(f"!!!! Error in Executing VideoPlayback Build with current {video_file} file !!!!")
-                    sys.exit()
-                    
-    def estimate_ratio_csa_with_offset(self):
-        ## get left and right camera offset ###
-        with open(self.args.json_path,"r") as json_file:
-            updated_json = json.load(json_file)
-                    
+        # check if the process has executed and terminated successfully
+        if process == 0:
+            self.progress_done.set()
+            progress_thread.join()
+            # self.logger.info(f"Done with {os.path.join(self.data_dir,video_file)}")
+        else:
+            self.progress_done.set()
+            progress_thread.join()
+            self.logger.error(f"!!!! Error in Executing VideoPlayback Build with current {video_file} file !!!!")
+            sys.exit()
+        
+            
+    def generate_log_using_existing_build(self,mode):
+        """
+        generate log of ratio and steering angle using videoplayback build
+        Param:
+        mode : 0->without ratio and steering offset, 1->with ratio and without steering offset , 2->with ratio and with steering offset
+        """
+        # update HostCommnflag :0 and HybridSwitch : false in CameraStartUpJson before running VideoPlayback with offline videos
+        self.update_param_in_camera_startup_json(ParamType = "DebugParams",HostCommnFlag = 0,HybridSwitch = False)
+        
+        # iterate over front,left and right video files in directory and execute videoplayback build and generate log files
         for video_file in os.listdir(self.data_dir):
             if ".mp4" in video_file:
-                if "Right" in video_file:
-                    self.progress_done.clear()
-                    ####### run videoplayback build and generate log to get ratio and csa ########
-                    
-                    # change camera to right in json
-                    updated_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 1
-                    with open(self.args.json_path,"w") as right_cam_json:
-                        json.dump(updated_json,right_cam_json,indent = 4)
-                    
-                    self.right_cam_log_file_with_offset = os.path.join(self.data_dir,"RightCamLogWithOffset.txt")
-                    
-                    # Start the progress indicator thread
-                    self.progress_msg = f"{self.get_formatted_timestamp()} Executing VideoPlayback build [{self.build_name}] with {video_file}"
-                    progress_thread = threading.Thread(target = self.print_progress)
-                    progress_thread.start()
-                    
-                    cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {self.right_cam_log_file_with_offset} 2>&1"
-                    process = os.system(cmd)
-
-                    if process == 0:
-                        self.progress_done.set()
-                        progress_thread.join()
-                    
-                    else:
-                        self.progress_done.set()
-                        progress_thread.join()
-                        self.logger.error(f"!!! Error in Executing {self.videoplayback_build} with {video_file} !!!")
-                        sys.exit()
-                        
-                    ####### parse log file and get ratio and csa with offsets ##########
-                    if os.path.exists(self.right_cam_log_file_with_offset):
-                        right_cam_ratio_with_offset , right_cam_csa_with_offset = self.get_ratio_csa_from_log_file(self.right_cam_log_file_with_offset)
-                        # update this in pretty table
-                        self.RightCamRow[self.RATIO_WITH_OFFSET_IDX] = right_cam_ratio_with_offset
-                        self.RightCamRow[self.CSA_WITH_OFFSET_IDX] = right_cam_csa_with_offset
-                    else:
-                        self.logger.error(f"!!! log file with offset : {self.right_cam_log_file_with_offset} doesn't exist !!!")
-                        
-                if "Left" in video_file:
-                    self.progress_done.clear()
-                    ####### run videoplayback build and generate log to get ratio and csa ########
-                    
-                    # change camera to right in json
-                    updated_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 2
-                    with open(self.args.json_path,"w") as left_cam_json:
-                        json.dump(updated_json,left_cam_json,indent = 4)
-                        
-                    self.left_cam_log_file_with_offset = os.path.join(self.data_dir,"LeftCamLogWithOffset.txt")
-                    
-                    # Start the progress indicator thread
-                    self.progress_msg = f"{self.get_formatted_timestamp()} Executing VideoPlayback build [{self.build_name}] with {video_file}"
-                    progress_thread = threading.Thread(target = self.print_progress)
-                    progress_thread.start()
-                    
-                    cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {self.left_cam_log_file_with_offset} 2>&1"
-                    process = os.system(cmd)
-                    
-                    if process == 0:
-                        self.progress_done.set()
-                        progress_thread.join()
-                    
-                    else:
-                        self.progress_done.set()
-                        progress_thread.join()
-                        self.logger.error(f"!!! Error in Executing {self.videoplayback_build} with {video_file} !!!")
-                        sys.exit()
-                    
-                        
-                    ####### parse log file and get ratio and csa with offsets ##########
-                    if os.path.exists(self.left_cam_log_file_with_offset):
-                        left_cam_ratio_with_offset , left_cam_csa_with_offset = self.get_ratio_csa_from_log_file(self.left_cam_log_file_with_offset)
-                        # update this in pretty table
-                        self.LeftCamRow[self.RATIO_WITH_OFFSET_IDX] = left_cam_ratio_with_offset
-                        self.LeftCamRow[self.CSA_WITH_OFFSET_IDX] = left_cam_csa_with_offset
-                    else:
-                        self.logger.error(f"!!! log file with offset : {self.left_cam_log_file_with_offset} doesn't exist !!!")
-                if "Front" in video_file:
-                    self.progress_done.clear()
-                    # change camera to right in json
-                    updated_json["DebugParams"][0]["SelectCameraForOfflineMode"] = 0
-                    with open(self.args.json_path,"w") as front_cam_json:
-                        json.dump(updated_json,front_cam_json,indent = 4)
-                    
-                    self.front_cam_log_file_with_offset = os.path.join(self.data_dir,"FrontCamLogWithOffset.txt")
-                    
-                    # Start the progress indicator thread
-                    self.progress_msg = f"{self.get_formatted_timestamp()} Executing VideoPlayback build [{self.build_name}] with {video_file}"
-                    progress_thread = threading.Thread(target = self.print_progress)
-                    progress_thread.start()
-                    
-                    cmd = f"{self.args.videoplayback_build} --offline -i {os.path.join(self.data_dir,video_file)} -v > {self.front_cam_log_file_with_offset} 2>&1"
-                    process = os.system(cmd)
-                    
-                    if process == 0:
-                        self.progress_done.set()
-                        progress_thread.join()
-                    
-                    else:
-                        self.progress_done.set()
-                        progress_thread.join()
-                        self.logger.error(f"!!! Error in Executing {self.videoplayback_build} with {video_file} !!!")
-                        sys.exit()
-                    ####### parse log file and get ratio and csa with offsets ##########
-                    if os.path.exists(self.front_cam_log_file_with_offset):
-                        front_cam_ratio_with_offset , front_cam_csa_with_offset = self.get_ratio_csa_from_log_file(self.front_cam_log_file_with_offset)
-                        # update this in pretty table
-                        self.FrontCamRow[self.RATIO_WITH_OFFSET_IDX] = front_cam_ratio_with_offset
-                        self.FrontCamRow[self.CSA_WITH_OFFSET_IDX] = front_cam_csa_with_offset
-                    else:
-                        self.logger.error(f"!!! log file with offset : {self.left_cam_log_file_with_offset} doesn't exist !!!")
-                        
-    
+                self.execute_videoplayback_build(video_file,mode)
+                
     def get_ratio_csa_from_log_file(self,log_file_path):
         """
         utility function to get ratio and current steering angle from log file provided as a single value
@@ -559,252 +501,451 @@ class AutoCalibrate(ParseParams,CamContext,ArucoMarkerDetector,CamCalibResultTab
         
         return round(ratio_mean,3) , round(csa_mean,2)
     
-    def estimate_offset(self,measured_ratio,measured_steering_angle,cam_name = None):
+    def get_ratio_and_csa_offset(self,measured_ratio,measured_csa,cam):
         """
-        Function to estimate side camera offset using equation and offset in steering angle.
+        get the ratio offset and csa offset for left,right and front cam based on provided mean ratio and mean csa
         """
-        
-        if cam_name == None:
-            self.logger.error(f"!!!!! No camera name provided for estimate offset method !!!!!!")
-            sys.exit()
-        
-        if cam_name == "right":
-            return round(self.current_json["DebugParams"][0]["PathWidth"] * (self.args.target_ratio - measured_ratio),2) , round((self.args.target_steering_angle - measured_steering_angle),2)
-
-        if cam_name == "left":
-            ## this logic holds good when old version of table is used without botwidth added to distance
-            # return abs(int(self.current_json["DebugParams"][0]["PathWidth"] * (1 - measured_ratio - self.args.target_ratio))) , round((self.args.target_steering_angle - measured_steering_angle),2)
-            
-            return round(self.current_json["DebugParams"][0]["PathWidth"]*(measured_ratio - self.args.target_ratio),2) , round((self.args.target_steering_angle - measured_steering_angle),2)
-        
-        
-        if cam_name == "front":
-            return None , round((self.args.target_steering_angle - measured_steering_angle),2)
-        
-    def check_and_update_estimated_offset(self,estimated_ratio,estimated_csa,cam_name = None):
-        """
-        utility function to check whether the current estimated ratio without side cam offset lies in acceptable range
-        and update the same in json file.
-        """            
-        Estimated_SideCameraOffset , Estimated_SideCameraSteeringOffset = self.estimate_offset(cam_name = cam_name,measured_ratio = estimated_ratio,measured_steering_angle = estimated_csa)
-        
-        if cam_name != "front":
-            # Overwrite right camera offset in json file
-            with open(self.args.json_path,"w") as updated_json:
-                self.current_json["CamParams"][0][f"{cam_name}SideCameraOffset"] = Estimated_SideCameraOffset
-                # self.current_json["CamParams"][0][f"{cam_name}SideSteeringOffset"] = Estimated_SideCameraSteeringOffset
-                
-                json.dump(self.current_json,updated_json,indent = 4)
-            # self.logger.info(f"Done , Overwriting of {cam_name}SideCameraOffset and {cam_name}SteeringOffset in Json file")
-            
-        # for front , offset is only for steering angle
-        if cam_name == "front":
-            with open(self.args.json_path,"w") as updated_json:
-                self.current_json["CamParams"][0][f"{cam_name}SideSteeringOffset"] = Estimated_SideCameraSteeringOffset
-                json.dump(self.current_json,updated_json,indent = 4)
-            # self.logger.info(f"Done, Overwritting of {cam_name}SideSteeringOffset in json file")
-        
-        if cam_name == "right": self.RightCamRow[self.RATIO_OFFSET_IDX] = Estimated_SideCameraOffset ; self.RightCamRow[self.STEERING_ANGLE_OFFSET_IDX] = Estimated_SideCameraSteeringOffset
-        if cam_name == "left" : self.LeftCamRow[self.RATIO_OFFSET_IDX] = Estimated_SideCameraOffset ; self.LeftCamRow[self.STEERING_ANGLE_OFFSET_IDX] = Estimated_SideCameraSteeringOffset
-        if cam_name == "front" : self.FrontCamRow[self.RATIO_OFFSET_IDX] = "-" ; self.FrontCamRow[self.STEERING_ANGLE_OFFSET_IDX] = Estimated_SideCameraSteeringOffset
-        
-    def get_formatted_timestamp(self):
-        """
-        Utility function to add formatted string with time stamp and log level, while taking user input.
-        """
-        
-        log_level = "INFO"
-        timestamp = datetime.now().strftime("%d/%m/%y %H:%M:%S")
-        
-        return f"[{timestamp}, {log_level}]"
+        if cam == "right":
+            return round(self.current_json["DebugParams"][0]["PathWidth"] * (self.args.target_ratio - measured_ratio),2) , round((self.args.target_steering_angle - measured_csa),2)
+        if cam == "left":
+            return round(self.current_json["DebugParams"][0]["PathWidth"]*(measured_ratio - self.args.target_ratio),2) , round((self.args.target_steering_angle - measured_csa),2)
+        if cam == "front":
+            return None , round((self.args.target_steering_angle - measured_csa),2)
+                    
     
-    def log_progress(self,message):
+    def estimate_and_update_offset_in_json(self,mode):
         """
-        Utility function to log the progress.
+        function to estimate offset from log file and update in json
         """
-        if abs(self.current_frame_count-self.args.record_frame_count == 0):
-            sys.stdout.write(f"\r{message}")    
-            sys.stdout.write("\n")
-            sys.stdout.flush()
+        # iterate for three cameras and estimate ratio and steering offset using generated log file
+        for cam in ["front","right","left"]:
+            log_file = os.path.join(self.data_dir,self.log_file_name[mode][cam])
+                
+            # get the mean ratio and mean csa from log file
+            ratio_mean , csa_mean = self.get_ratio_csa_from_log_file(log_file)
+            
+            # using this mean of ratio and csa , estimate the offset
+            ratio_offset , csa_offset = self.get_ratio_and_csa_offset(ratio_mean,csa_mean,cam)
+                
+                        
+            ### update estimated offset based on mode ###
+            if mode == 0:
+                # ratio and csa without offset
+                # ratio offset update in json
+                self.update_result(cam = cam,ratio_without_offset = ratio_mean,ratio_offset = ratio_offset)
+                
+                # update estimated ratio offset in json
+                if cam == "right": 
+                    self.update_param_in_camera_startup_json(ParamType = "CamParams",rightSideCameraOffset = ratio_offset)
+                    self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET = csa_mean
+                if cam == "left" : 
+                    self.update_param_in_camera_startup_json(ParamType = "CamParams",leftSideCameraOffset = ratio_offset)
+                    self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET = csa_mean
+                if cam == "front":
+                    self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET = csa_mean
+                
+            
+            if mode == 1:
+                # ratio with offset and csa without offset
+                # csa offset update in json
+                self.update_result(cam = cam,csa_without_offset = csa_mean,csa_offset = csa_offset)
+                
+                # update estimated steering offset in json
+                if cam == "right": self.update_param_in_camera_startup_json(ParamType = "CamParams",rightSideSteeringOffset = csa_offset)
+                if cam == "left" : self.update_param_in_camera_startup_json(ParamType = "CamParams",leftSideSteeringOffset = csa_offset)
+                if cam == "front": self.update_param_in_camera_startup_json(ParamType = "CamParams",frontSideSteeringOffset = csa_offset)
+                
+            if mode == 2:
+                # ratio with offset and csa with offset
+                self.update_result(cam = cam,ratio_with_offset = ratio_mean,csa_with_offset = csa_mean)
+                
+                
+    def calibration_result_without_offsets(self):
+        """
+        check the ratio and steering angle before applying offsets , after check whether to consider current camera mounting.
+        """
+        #flag to keep track and make decision on printing result
+        MOUNTING_STATUS_COUNT = 0
+        
+        
+        ##### Ratio #####
+        if self.Front.RATIO_WITHOUT_OFFSET >= self.args.ratio_without_side_cam_offset_min and self.Front.RATIO_WITHOUT_OFFSET <= self.args.ratio_without_side_cam_offset_max:
+            # status of front cam in vertical position
+            FRONT_CAM_VERTICAL_POS_STATUS = self.color_text("PASS","green")
         else:
-            sys.stdout.write(f"\r{message}")
-            sys.stdout.flush()
+            FRONT_CAM_VERTICAL_POS_STATUS = self.color_text("FAIL","red")
+            MOUNTING_STATUS_COUNT += 1
         
+        if self.Right.RATIO_WITHOUT_OFFSET >= self.args.ratio_without_side_cam_offset_min and self.Right.RATIO_WITHOUT_OFFSET <= self.args.ratio_without_side_cam_offset_max:
+            RIGHT_CAM_VERTICAL_POS_STATUS = self.color_text("PASS","green")
+        else:
+            RIGHT_CAM_VERTICAL_POS_STATUS = self.color_text("FAIL","red")
+            MOUNTING_STATUS_COUNT += 1
+            
+        if self.Left.RATIO_WITHOUT_OFFSET >= self.args.ratio_without_side_cam_offset_min and self.Left.RATIO_WITHOUT_OFFSET <= self.args.ratio_without_side_cam_offset_max:
+            LEFT_CAM_VERTICAL_POS_STATUS = self.color_text("PASS","green")
+        else:
+            LEFT_CAM_VERTICAL_POS_STATUS = self.color_text("FAIL","red")
+            MOUNTING_STATUS_COUNT += 1
+        #################
         
-    def print_progress(self):
+        ##### Steering Angle #####
+        if self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET >= self.args.csa_without_offset_min and self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET <= self.args.csa_without_offset_max:
+            FRONT_CAM_ROTATED_POS_STATUS = self.color_text("PASS","green")
+        else:
+            FRONT_CAM_ROTATED_POS_STATUS = self.color_text("FAIL","red")
+            MOUNTING_STATUS_COUNT += 1
+        
+        if self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET >= self.args.csa_without_offset_min and self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET <= self.args.csa_without_offset_max:
+            RIGHT_CAM_ROTATED_POS_STATUS = self.color_text("PASS","green")
+        else:
+            RIGHT_CAM_ROTATED_POS_STATUS = self.color_text("FAIL","red")
+            MOUNTING_STATUS_COUNT += 1
+            
+        if self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET >= self.args.csa_without_offset_min and self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET <= self.args.csa_without_offset_max:
+            LEFT_CAM_ROTATED_POS_STATUS = self.color_text("PASS","green")
+        else:
+            LEFT_CAM_ROTATED_POS_STATUS = self.color_text("FAIL","red")
+            MOUNTING_STATUS_COUNT += 1
+        #########################
+        
+        if MOUNTING_STATUS_COUNT > 0:
+            # print auto calibration status
+            self.logger.info("###################################################")
+            self.logger.info(f"###      AutoCalibration Status : {self.color_text('FAIL','red')}          ###")
+            self.logger.info("###################################################")
+            
+            cam_mounting_witout_offset_table = PrettyTable()
+            cam_mounting_witout_offset_table.field_names = ["CamName","CamId","RatioWithoutOffset","CsaWithoutOffset","VerticalPos","RotatedPos"]
+            cam_mounting_witout_offset_table.add_row(["FrontCam",self.current_json["CamParams"][0]["frontCameraId"],self.Front.RATIO_WITHOUT_OFFSET,self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET,FRONT_CAM_VERTICAL_POS_STATUS,FRONT_CAM_ROTATED_POS_STATUS])
+            cam_mounting_witout_offset_table.add_row(["RightCam",self.current_json["CamParams"][0]["rightCameraId"],self.Right.RATIO_WITHOUT_OFFSET,self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET,RIGHT_CAM_VERTICAL_POS_STATUS,RIGHT_CAM_ROTATED_POS_STATUS])
+            cam_mounting_witout_offset_table.add_row(["LeftCam",self.current_json["CamParams"][0]["leftCameraId"],self.Left.RATIO_WITHOUT_OFFSET,self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET,LEFT_CAM_VERTICAL_POS_STATUS,LEFT_CAM_ROTATED_POS_STATUS])
+            print(cam_mounting_witout_offset_table)
+            
+            ##### print instruction to user for adjusting camera mounting #######
+            self.print_result_before_applying_offset()
+        
+    def print_result_before_applying_offset(self):
         """
-        Utility function to print the progress of executing VideoPlayback build with the recorded video.
+        gives instruction to user on adjusting camera mounting based on ratio and steering angle of camera without offset.
         """
-        symbols = ['./','.\\']
-        while not self.progress_done.is_set():
-            for symbol in symbols:
-                sys.stdout.write(f"\r{self.progress_msg} {symbol}")
-                sys.stdout.flush()
-                time.sleep(0.5)
-        sys.stdout.write(f'\r{self.progress_msg} [Done] \n')
-        sys.stdout.flush()
+        self.logger.info("############################################################################################")
+        self.logger.info("###############     Follow Below Instruction to Adjust Camera Mounting       ###############")
+        self.logger.info("############################################################################################")
         
-    def estimate_and_update_steering_offset(self):
-        for log_file in os.listdir(self.data_dir):
-            log_file = os.path.join(self.data_dir,log_file)
-            if ".txt" in log_file:
-                if "RightCamLogWithOffset" in log_file:
-                    # get csa mean
-                    _ , right_csa_with_ratio_offset = self.get_ratio_csa_from_log_file(log_file)
-                    # get steering offset
-                    right_steering_offset = round(self.args.target_steering_angle - right_csa_with_ratio_offset,2)
-                    # update in json file
-                    with open(self.args.json_path,"r") as json_without_right_steering_offset:
-                        right_steering_offset_json = json.load(json_without_right_steering_offset)
-                    right_steering_offset_json["CamParams"][0]["rightSideSteeringOffset"] = right_steering_offset
-                    with open(self.args.json_path,"w") as json_with_right_steering_offset:
-                        json.dump(right_steering_offset_json,json_with_right_steering_offset,indent=4)
-                    
-                    # update in display table
-                    self.RightCamRow[self.CSA_WITHOUT_OFFSET_IDX] = right_csa_with_ratio_offset
-                    self.RightCamRow[self.CSA_WITH_OFFSET_IDX] = right_csa_with_ratio_offset + right_steering_offset
-                    self.RightCamRow[self.STEERING_ANGLE_OFFSET_IDX] = right_steering_offset
-                    
-                if "LeftCamLogWithOffset" in log_file:
-                    # get csa mean
-                    _ , left_csa_with_ratio_offset = self.get_ratio_csa_from_log_file(log_file)
-                    # get steering offset
-                    left_steering_offset = round(self.args.target_steering_angle - left_csa_with_ratio_offset,2)
-                    # update in json file
-                    with open(self.args.json_path,"r") as json_without_left_steering_offset:
-                        left_steering_offset_json = json.load(json_without_left_steering_offset)
-                    left_steering_offset_json["CamParams"][0]["leftSideSteeringOffset"] = left_steering_offset
-                    with open(self.args.json_path,"w") as json_with_left_steering_offset:
-                        json.dump(left_steering_offset_json,json_with_left_steering_offset,indent=4)
-                    
-                    # update in display table
-                    self.LeftCamRow[self.CSA_WITHOUT_OFFSET_IDX] = left_csa_with_ratio_offset
-                    self.LeftCamRow[self.CSA_WITH_OFFSET_IDX] = left_csa_with_ratio_offset + left_steering_offset
-                    self.LeftCamRow[self.STEERING_ANGLE_OFFSET_IDX] = left_steering_offset
+        ##### varialbe to store instruction of corresponding camera #####
+        FRONT_CAM_INSTRUCTION = "Accept Current Mounting Position" 
+        RIGHT_CAM_INSTRUCTION = "Accept Current Mounting Position"
+        LEFT_CAM_INSTRUCTION = "Accept Current Mounting Position"
+        
+        ### get the adustment to be done in mounting of camera based on ratio and steering angle without offset ###
+        ###### Front Camera ####
+        ###### Camera Movement in both upward or downward and clockwise or anticlockwise ######
+        if self.Front.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min and self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
+            FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} & Rotate {self.color_text('Clockwise','blue')}"
+        elif self.Front.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min and self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
+            FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} & Rotate {self.color_text('Anti-Clockwise','blue')}"
+        elif self.Front.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max and self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
+            FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} & Rotate {self.color_text('Clockwise','blue')}"
+        elif self.Front.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max and self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
+            FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} & Rotate {self.color_text('Anti-Clockwise','blue')}"
+        ###### Camera Movement in upwards or downwards based on ratio without offset ######
+        if self.Front.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min:
+            FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} From Current Position"
+        elif self.Front.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max:
+            FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} From Current Position"
+        ##### Camera Rotation in clockwise of anticlockwise based on steering angle without offset #####
+        if self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
+            FRONT_CAM_INSTRUCTION = f"Rotate {self.color_text('Clockwise','blue')} From Current Position"
+        elif self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
+            FRONT_CAM_INSTRUCTION = f"Rotate {self.color_text('Anti-Clockwise','blue')} From Current Position"
+            
+        ##### Right Camera ####
+        if self.Right.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min and self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
+            RIGHT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} & Rotate {self.color_text('Clockwise','blue')}"
+        elif self.Right.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min and self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
+            RIGHT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} & Rotate {self.color_text('Anti-Clockwise','blue')}"
+        elif self.Right.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max and self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
+            RIGHT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} & Rotate {self.color_text('Clockwise','blue')}"
+        elif self.Right.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max and self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
+            RIGHT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} & Rotate {self.color_text('Anti-Clockwise','blue')}"
+        ###### Camera Movement in upwards or downwards based on ratio without offset ######
+        if self.Right.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min:
+            RIGHT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} From Current Position"
+        elif self.Right.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max:
+            RIGHT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} From Current Position"
+        ##### Camera Rotation in clockwise of anticlockwise based on steering angle without offset #####
+        if self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
+            RIGHT_CAM_INSTRUCTION = f"Rotate {self.color_text('Clockwise','blue')} From Current Position"
+        elif self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
+            RIGHT_CAM_INSTRUCTION = f"Rotate {self.color_text('Anti-Clockwise','blue')} From Current Position"
+            
+        ##### Left Camera ####
+        if self.Left.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min and self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
+            LEFT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} & Rotate {self.color_text('Clockwise','blue')}"
+        elif self.Left.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min and self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
+            LEFT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} & Rotate {self.color_text('Anti-Clockwise','blue')}"
+        elif self.Left.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max and self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
+            LEFT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} & Rotate {self.color_text('Clockwise','blue')}"
+        elif self.Left.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max and self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
+            LEFT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} & Rotate {self.color_text('Anti-Clockwise','blue')}"
+        ###### Camera Movement in upwards or downwards based on ratio without offset ######
+        if self.Left.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min:
+            LEFT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} From Current Position"
+        elif self.Left.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max:
+            LEFT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} From Current Position"
+        ##### Camera Rotation in clockwise of anticlockwise based on steering angle without offset #####
+        if self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
+            LEFT_CAM_INSTRUCTION = f"Rotate {self.color_text('Clockwise','blue')} From Current Position"
+        elif self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
+            LEFT_CAM_INSTRUCTION = f"Rotate {self.color_text('Anti-Clockwise','blue')} From Current Position"
+        
+        
+        
+        # table to hold instructions for respective camera #
+        instruction_table = PrettyTable()
+        instruction_table.field_names = ["Camera","Instruction"]
+        instruction_table.add_row(["Front",FRONT_CAM_INSTRUCTION])
+        instruction_table.add_row(["Right",RIGHT_CAM_INSTRUCTION])
+        instruction_table.add_row(["Left",LEFT_CAM_INSTRUCTION])
+        print(instruction_table)
+        
+        # print and exit the code
+        sys.exit()
+        
+    def print_result_after_applying_offsets(self):
+        
+        # if ratio and steering angle with offset lies in acceptable range , autocalibration is success
+        AUTO_CALIB_STATUS_WITH_OFFSETS = 0
+        # ratio with offset status #
+        FRONT_RATIO_WITH_OFFSET_STATUS = None 
+        RIGHT_RATIO_WITH_OFFSET_STATUS = None
+        LEFT_RATIO_WITH_OFFSET_STATUS = None
+        # steering angle with offset status #
+        FRONT_CSA_WITH_OFFSET_STATUS = None 
+        RIGHT_CSA_WITH_OFFSET_STATUS = None
+        LEFT_CSA_WITH_OFFSET_STATUS = None
+        
+        # instruction 
+        FRONT_CAM_INSTRUCTION = "Accept Ratio & Steering Angle with offset"
+        RIGHT_CAM_INSTRUCTION = "Accept Ratio & Steering Angle with offset"
+        LEFT_CAM_INSTRUCTION = "Accept Ratio & Steering Angle with offset"
+        
+        ##### Front Cam ####
+        # Ratio with offset #
+        if self.Front.RATIO_WITH_OFFSET >= self.args.ratio_with_side_cam_offset_min and self.Front.RATIO_WITH_OFFSET <= self.args.ratio_with_side_cam_offset_max:
+            FRONT_RATIO_WITH_OFFSET_STATUS = self.color_text("PASS","green")
+        else:
+            AUTO_CALIB_STATUS_WITH_OFFSETS += 1
+            FRONT_RATIO_WITH_OFFSET_STATUS = self.color_text("FAIL","red")
+        if self.Right.RATIO_WITH_OFFSET >= self.args.ratio_with_side_cam_offset_min and self.Right.RATIO_WITH_OFFSET <= self.args.ratio_with_side_cam_offset_max:
+            RIGHT_RATIO_WITH_OFFSET_STATUS = self.color_text("PASS","green")
+        else:
+            AUTO_CALIB_STATUS_WITH_OFFSETS += 1
+            RIGHT_RATIO_WITH_OFFSET_STATUS = self.color_text("FAIL","red")
+        if self.Left.RATIO_WITH_OFFSET >= self.args.ratio_with_side_cam_offset_min and self.Left.RATIO_WITH_OFFSET <= self.args.ratio_with_side_cam_offset_max:
+            LEFT_RATIO_WITH_OFFSET_STATUS = self.color_text("PASS","green")
+        else:
+            AUTO_CALIB_STATUS_WITH_OFFSETS += 1
+            LEFT_RATIO_WITH_OFFSET_STATUS = self.color_text("FAIL","red")
+            
+        # CSA With offset #
+        if self.Front.STEERING_ANGLE_WITH_OFFSET >= self.args.csa_with_offset_min and self.Front.STEERING_ANGLE_WITH_OFFSET <= self.args.csa_with_offset_max:
+            FRONT_CSA_WITH_OFFSET_STATUS = self.color_text("PASS","green")
+        else:
+            AUTO_CALIB_STATUS_WITH_OFFSETS += 1
+            FRONT_CSA_WITH_OFFSET_STATUS = self.color_text("FAIL","red")
+        if self.Right.STEERING_ANGLE_WITH_OFFSET >= self.args.csa_with_offset_min and self.Right.STEERING_ANGLE_WITH_OFFSET <= self.args.csa_with_offset_max:
+            RIGHT_CSA_WITH_OFFSET_STATUS = self.color_text("PASS","green")
+        else:
+            AUTO_CALIB_STATUS_WITH_OFFSETS += 1
+            RIGHT_CSA_WITH_OFFSET_STATUS = self.color_text("FAIL","red")
+        if self.Left.STEERING_ANGLE_WITH_OFFSET >= self.args.csa_with_offset_min and self.Left.STEERING_ANGLE_WITH_OFFSET <= self.args.csa_with_offset_max:
+            LEFT_CSA_WITH_OFFSET_STATUS = self.color_text("PASS","green")
+        else:
+            AUTO_CALIB_STATUS_WITH_OFFSETS += 1
+            LEFT_CSA_WITH_OFFSET_STATUS = self.color_text("FAIL","red")
+        ####################
+        ## instruction for individual cameras ##
+        # front #
+        if FRONT_RATIO_WITH_OFFSET_STATUS == self.color_text("FAIL","red") and FRONT_CSA_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
+            if self.Front.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min and self.Front.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
+                FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min} & Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
+            elif self.Front.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min and self.Front.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
+                FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min} & Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"
+            elif self.Front.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max and self.Front.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
+                FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max} & Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
+            elif self.Front.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max and self.Front.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
+                FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max} & Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"                
+        elif FRONT_RATIO_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
+            if self.Front.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min:
+                FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min}"
+            elif self.Front.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max:
+                FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max}"
+        elif FRONT_CSA_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
+            if self.Front.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
+                FRONT_CAM_INSTRUCTION = f"Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
+            elif self.Front.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
+                FRONT_CAM_INSTRUCTION = f"Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"
+        # right #
+        if RIGHT_RATIO_WITH_OFFSET_STATUS == self.color_text("FAIL","red") and RIGHT_CSA_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
+            if self.Right.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min and self.Right.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
+                RIGHT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min} & Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
+            elif self.Right.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min and self.Right.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
+                RIGHT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min} & Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"
+            elif self.Right.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max and self.Right.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
+                RIGHT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max} & Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
+            elif self.Right.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max and self.Right.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
+                RIGHT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max} & Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"                
+        elif RIGHT_RATIO_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
+            if self.Right.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min:
+                RIGHT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min}"
+            elif self.Right.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max:
+                RIGHT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max}"
+        elif RIGHT_CSA_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
+            if self.Right.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
+                RIGHT_CAM_INSTRUCTION = f"Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
+            elif self.Right.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
+                RIGHT_CAM_INSTRUCTION = f"Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"
+        # left #
+        if LEFT_RATIO_WITH_OFFSET_STATUS == self.color_text("FAIL","red") and LEFT_CSA_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
+            if self.Left.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min and self.Left.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
+                LEFT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min} & Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
+            elif self.Left.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min and self.Left.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
+                LEFT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min} & Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"
+            elif self.Left.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max and self.Left.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
+                LEFT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max} & Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
+            elif self.Left.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max and self.Left.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
+                LEFT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max} & Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"                
+        elif LEFT_RATIO_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
+            if self.Left.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min:
+                LEFT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min}"
+            elif self.Left.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max:
+                LEFT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max}"
+        elif LEFT_CSA_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
+            if self.Left.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
+                LEFT_CAM_INSTRUCTION = f"Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
+            elif self.Left.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
+                LEFT_CAM_INSTRUCTION = f"Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"
+        ########################################
+        
+        if AUTO_CALIB_STATUS_WITH_OFFSETS > 0:
+            self.logger.info("###################################################")
+            self.logger.info(f"###      AutoCalibration Status : {self.color_text('FAIL','red')}          ###")
+            self.logger.info("###################################################")
+            
+            # auto_calib_with_offsets_table = PrettyTable()
+            # auto_calib_with_offsets_table.field_names = ["Camera","RatioWithOffset","CsaWithOffset"]
+            # auto_calib_with_offsets_table.add_row(["Front",FRONT_RATIO_WITH_OFFSET_STATUS,FRONT_CSA_WITH_OFFSET_STATUS])
+            # auto_calib_with_offsets_table.add_row(["Right",RIGHT_RATIO_WITH_OFFSET_STATUS,RIGHT_CSA_WITH_OFFSET_STATUS])
+            # auto_calib_with_offsets_table.add_row(["Left",LEFT_RATIO_WITH_OFFSET_STATUS,LEFT_CSA_WITH_OFFSET_STATUS])
+            # print(auto_calib_with_offsets_table)
+            
+            auto_calib_with_offsets_table = PrettyTable()
+            auto_calib_with_offsets_table.field_names = ["Camera","RatioWithOffset","CsaWithOffset","Instruction"]
+            auto_calib_with_offsets_table.add_row(["Front",self.Front.RATIO_WITH_OFFSET,self.Front.STEERING_ANGLE_WITH_OFFSET,FRONT_CAM_INSTRUCTION])
+            auto_calib_with_offsets_table.add_row(["Right",self.Right.RATIO_WITH_OFFSET,self.Right.STEERING_ANGLE_WITH_OFFSET,RIGHT_CAM_INSTRUCTION])
+            auto_calib_with_offsets_table.add_row(["Left",self.Left.RATIO_WITH_OFFSET,self.Left.STEERING_ANGLE_WITH_OFFSET,LEFT_CAM_INSTRUCTION])
+            print(auto_calib_with_offsets_table)
+            
+        else:
+            self.logger.info("###################################################")
+            self.logger.info(f"###      AutoCalibration Status : {self.color_text('PASS','green')}          ###")
+            self.logger.info("###################################################")
+            
+            self.logger.info(f"### {os.path.basename(self.args.json_path).split('.')[0]} has been updated with Ratio and Steering Offset ##")
         
         
     def run_calibration(self):
+        """
+        Main function where all the functions related to auto calibration are called in sequence.
+        """
         
-        ############################### Camera Id Mapping ####################################################
-        self.logger.info("========= Performing Camera Id Mapping =========")
-        self.detect_and_map_cam_ids()
+        ########### Configure CameraStartUpJson #################
+        self.configure_camera_startup_json()
+        #########################################################
         
-        self.logger.info(f"Mapped Camera Id's FrontCameraId : {self.current_json['CamParams'][0]['frontCameraId']} | RightCameraId : {self.current_json['CamParams'][0]['rightCameraId']} | LeftCameraId : {self.current_json['CamParams'][0]['leftCameraId']}")
-        self.logger.info(f"Mapped Camera Idx FrontCameraIdx : {self.cam_name_and_index['FrontCam']} | RightCameraIdx : {self.cam_name_and_index['RightCam']} | LeftCameraIdx : {self.cam_name_and_index['LeftCam']}")
-        # after detecting camera id, update it in json
-        with open(self.args.json_path,"w") as updated_json:
-            json.dump(self.current_json,updated_json,indent = 4)
-        # self.logger.info("Updated mapped Camera Id's in Json")
-        self.logger.info("=========    Done Camera Id Mapping    =========")
-        ############################### End of Camera Id Mapping ##############################################
-                
-        ### Record video of Front,Left and Right for debug and estimating offsets #########
+        ########### Configure BotType ###########################
+        self.configure_bot_type()
+        #########################################################
+        
+        ############# Configure LaneColourToScan ################
+        self.configure_lane_colour()
+        #########################################################
+        
+        ############# Configure PathWidth #######################
+        self.configure_path_width()
+        #########################################################
+        
+        ############# configure bot placement in predefined calibration position ###########
+        self.configue_bot_placement()
+        ####################################################################################
+        
+        ############# Perform Camera Id Mapping ###############
+        if self.args.skip_camera_id_mapping:
+            # display to user about skipping camera device id mapping
+            self.logger.info("################# Skipping Camera Device Id Mapping #################")
+        if not self.args.skip_camera_id_mapping:
+            self.detect_and_map_cam_ids()
+        #######################################################
+        
+        ############ Record Video ####################
         self.record_video()
-        ###  End Record video of Front,Left and Right for debug and estimating offsets ####
+        ##############################################
         
-        #### in debug mode ####
-        if self.args.debug:
-            src_dir = "/home/pi/auto_calib_debug_data/"
-            dest_dir = self.data_dir
-            # shutil.copy(src_dir,dest_dir)
-            if os.path.exists(dest_dir):
-                os.system(f"sudo rm -rf {dest_dir}")
-            os.system(f"sudo cp -r {src_dir} {dest_dir}")
-        #######################
+        ######## Before Executing Videoplayback build overwrite existing offsets with zero #######
+        self.overwrite_existing_offset()
+        ##########################################################################################
         
-        ########################### side camera offset estimation ######################################################
         
-        ### for side camera estimation set the current side camera offsets to zero in current json file ###
-        # self.logger.info(f"Setting leftSideCameraOffset and rightSideCameraOffset to 0")
-        self.current_json["CamParams"][0]["leftSideCameraOffset"] = 0
-        self.current_json["CamParams"][0]["rightSideCameraOffset"] = 0
+        ############### Generate Log files using VideoPlayback build #############################
         
-        # set steering offset to zero
-        self.current_json["CamParams"][0]["leftSideSteeringOffset"] = 0
-        self.current_json["CamParams"][0]["rightSideSteeringOffset"] = 0
-        self.current_json["CamParams"][0]["frontSideSteeringOffset"] = 0
+        ####### Without Ratio Offset and Without Steering Offset #######
+        self.logger.info(f"########## Executing {self.build_name} without Ratio & Without Steering Offset ##########")
+        self.generate_log_using_existing_build(mode = 0)
+        ################################################################
         
-        with open(self.args.json_path,"w") as updated_json:
-            json.dump(self.current_json,updated_json,indent = 4)
-        # self.logger.info(f"Overwritten leftSideCameraOffset : 0 and rightSideCameraOffset : 0")
-        # self.logger.info(f"Overwritten leftSideSteeringOffset : 0 , rightSideSteeringOffset : 0 and frontSideSteeringOffset : 0")
-        ############## end of setting side camera offsets to zero in current json file ####################
+        ###### Estimate ratio offset and update in json #######
+        self.estimate_and_update_offset_in_json(mode = 0)
+        self.print_result()
+        #######################################################
         
-        ##### run the existing videoplayback build with video/picture mode to estimate ratio with sidecamera offsets set to zero  #######
-        self.logger.info(f"########## Executing {self.build_name} without Ratio & Steering Offset ##########")
-        self.generate_log_using_existing_build()
-        ### End of, run the existing videoplayback build with video/picture mode to estimate ratio with sidecamera offsets set to zero ###
+        #### Before procedding further, check if the ratio and steering angle without offset lie in acceptable range ###
+        #### if ratio doesn't exist in acceptable in range, current mounting of camera in vertical (tilted position) is not acceptable ###
+        #### if steering angle doesn't exist in acceptable range, current mounting of camera in horizontal (rotated position) is not acceptable ###
+        self.calibration_result_without_offsets()
         
-        # get the log file for right cam and left cam
-        for log_file in os.listdir(self.data_dir):
-            log_file = os.path.join(self.data_dir,log_file)
-            if ".txt" in log_file:
-                # get the right cam log file
-                if "Right" in log_file:
-                    # get the ratio and csa using log file
-                    
-                    # self.logger.info("======== Estimating and Updating rightSideCamearaOffset and rightSteeringOffset ========")
-                    
-                    right_estimated_ratio_mean , right_csa_mean = self.get_ratio_csa_from_log_file(log_file)
-                    
-                    self.RightCamRow[self.RATIO_WITHOUT_OFFSET_IDX] = right_estimated_ratio_mean
-                    self.RightCamRow[self.CSA_WITHOUT_OFFSET_IDX] = right_csa_mean
-                    
-                    # self.logger.info(f"right_ratio_mean : {right_estimated_ratio_mean} | right_csa_mean : {right_csa_mean}")
-                
-                    self.check_and_update_estimated_offset(cam_name = "right", estimated_ratio = right_estimated_ratio_mean , estimated_csa = right_csa_mean)
-                    
-                    # self.logger.info("======== Estimating and Updating rightSideCamearaOffset and rightSteeringOffset [Done] ========")
-                        
-                # get the left cam log file
-                if "Left" in log_file:
-                    
-                    # get the ratio and csa using the log file
-                    
-                    # self.logger.info("======== Estimating and Updating leftSideCamearaOffset and leftSteeringOffset ========")
-                    
-                    left_estimated_ratio_mean , left_csa_mean = self.get_ratio_csa_from_log_file(log_file)
-                    
-                    self.LeftCamRow[self.RATIO_WITHOUT_OFFSET_IDX] = left_estimated_ratio_mean
-                    self.LeftCamRow[self.CSA_WITHOUT_OFFSET_IDX] = left_csa_mean
-                    
-                    # self.logger.info(f"left_ratio_mean : {left_estimated_ratio_mean} | left_csa_mean : {left_csa_mean}")
-                    
-                    self.check_and_update_estimated_offset(cam_name = "left",estimated_ratio = left_estimated_ratio_mean , estimated_csa = left_csa_mean)
-                    
-                    # self.logger.info("======== Estimating and Updating leftSideCamearaOffset and leftSteeringOffset [Done] ========")
-                    
-                # get the front cam log file
-                if "Front" in log_file:
-                    
-                    # self.logger.info("============ Estimating Front Ratio and Steering Angle ================")
-                    
-                    front_estimated_ratio_mean , front_csa_mean = self.get_ratio_csa_from_log_file(log_file)
-                    
-                    self.FrontCamRow[self.RATIO_WITHOUT_OFFSET_IDX] = front_estimated_ratio_mean
-                    self.FrontCamRow[self.CSA_WITHOUT_OFFSET_IDX] = front_csa_mean
-                    
-                    # self.logger.info(f"front_ratio_mean : {front_estimated_ratio_mean} | front_csa_mean : {front_csa_mean}")
-                    
-                    self.check_and_update_estimated_offset(cam_name = "front",estimated_ratio = front_estimated_ratio_mean , estimated_csa = front_csa_mean)
-                    
-                    # self.logger.info("============ Estimating Front Ratio and Steering Angle [Done] ================")
-                    
-        #estimate ratio and csa using the updated offsets
-        self.logger.info(f"########## Executing {self.build_name} with Ratio & Steering Offset ##########")
-        self.estimate_ratio_csa_with_offset()
+        ##### With Ratio offset and without Steering Offset ######
+        self.logger.info(f"########## Executing {self.build_name} with Ratio & Without Steering Offset ##########")
+        self.generate_log_using_existing_build(mode = 1)
+        ##########################################################
         
-        # estimate and update steering angle , using ratio with ratio offset
-        self.estimate_and_update_steering_offset()
-                    
-        self.print_pretty_table()
-                
-
+        ##### Estimate steering offset and update in json ####
+        self.estimate_and_update_offset_in_json(mode = 1)
+        self.print_result()
+        ######################################################
+        
+        ##### With Ratio Offset and With Steering Offset #####
+        self.logger.info(f"########## Executing {self.build_name} with Ratio & With Steering Offset ##########")
+        self.generate_log_using_existing_build(mode = 2)
+        ######################################################
+        
+        ##### Estimate steering offset and update in json ####
+        self.estimate_and_update_offset_in_json(mode = 2)
+        self.print_result()
+        ######################################################
+        
+        ##### Print status of calibration after atuo calibration with offsets ###
+        self.print_result_after_applying_offsets()
+        #########################################################################
+        
+        ##########################################################################################
+        
+    
 if __name__ == "__main__":
        
-    auto_calib = AutoCalibrate()
+    auto_calib = AutoCalibrateV2()
     try:
         auto_calib.run_calibration()
     except KeyboardInterrupt:
         print("------ exiting ----------")
-    
