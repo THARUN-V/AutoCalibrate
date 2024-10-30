@@ -89,6 +89,9 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET = None
         self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET = None
         self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET = None
+        
+        #### json file to store auto calibration result ###
+        self.auto_calib_data_json = "AutoCalibDataJson.json"
             
     def get_formatted_timestamp(self):
         """
@@ -258,12 +261,23 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         if len(self.see_cams) != self.args.n_cam:
             self.logger.error(f"Found {len(self.see_cams)} cameras out of {self.args.n_cam}")
             sys.exit()
-            
-        self.cam_name_and_index = {
-            "FrontCam":None,
-            "RightCam":None,
-            "LeftCam":None
-        }
+        
+        if self.args.skip_camera_id_mapping:
+            with open(self.args.json_path,"r") as f:
+                cam_id_json = json.load(f)
+            self.cam_name_and_index = {
+            "FrontCam":cam_id_json["CamParams"][0]["frontCameraId"],
+            "RightCam":cam_id_json["CamParams"][0]["rightCameraId"],
+            "LeftCam":cam_id_json["CamParams"][0]["leftCameraId"]
+            }
+        else:
+            self.cam_name_and_index = {
+                "FrontCam":None,
+                "RightCam":None,
+                "LeftCam":None
+            }
+        
+        
         
     def detect_and_map_cam_ids(self):
         """
@@ -856,6 +870,48 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
             self.logger.info(f"### {os.path.basename(self.args.json_path).split('.')[0]} has been updated with Ratio and Steering Offset ##")
         
         
+    def save_autocalibrate_result_as_json(self):
+        """
+        Save the results genrated by auto calibartion as json.
+        """
+        
+        auto_calib_data_dict = dict()
+        
+        auto_calib_data_dict[self.bot_name] = dict()
+        auto_calib_data_dict[self.bot_name]["front"] = dict()
+        auto_calib_data_dict[self.bot_name]["right"] = dict()
+        auto_calib_data_dict[self.bot_name]["left"] = dict()
+        
+        auto_calib_data_dict[self.bot_name]["front"]["camera_id"] = self.cam_name_and_index["FrontCam"]
+        auto_calib_data_dict[self.bot_name]["front"]["ratio_without_offset"] = self.Front.RATIO_WITHOUT_OFFSET
+        auto_calib_data_dict[self.bot_name]["front"]["steering_angle_without_offset"] = self.Front.STEERING_ANGLE_WITHOUT_OFFSET
+        auto_calib_data_dict[self.bot_name]["front"]["ratio_offset"] = self.Front.RATIO_OFFSET
+        auto_calib_data_dict[self.bot_name]["front"]["steering_angle_offset"] = self.Front.STEERING_OFFSET
+        auto_calib_data_dict[self.bot_name]["front"]["ratio_with_offset"] = self.Front.RATIO_WITH_OFFSET
+        auto_calib_data_dict[self.bot_name]["front"]["steering_angle_with_offset"] = self.Front.STEERING_ANGLE_WITH_OFFSET
+        
+        auto_calib_data_dict[self.bot_name]["right"]["camera_id"] = self.cam_name_and_index["RightCam"]
+        auto_calib_data_dict[self.bot_name]["right"]["ratio_without_offset"] = self.Right.RATIO_WITHOUT_OFFSET
+        auto_calib_data_dict[self.bot_name]["right"]["steering_angle_without_offset"] = self.Right.STEERING_ANGLE_WITHOUT_OFFSET
+        auto_calib_data_dict[self.bot_name]["right"]["ratio_offset"] = self.Right.RATIO_OFFSET
+        auto_calib_data_dict[self.bot_name]["right"]["steering_angle_offset"] = self.Right.STEERING_OFFSET
+        auto_calib_data_dict[self.bot_name]["right"]["ratio_with_offset"] = self.Right.RATIO_WITH_OFFSET
+        auto_calib_data_dict[self.bot_name]["right"]["steering_angle_with_offset"] = self.Right.STEERING_ANGLE_WITH_OFFSET
+        
+        auto_calib_data_dict[self.bot_name]["left"]["camera_id"] = self.cam_name_and_index["LeftCam"]
+        auto_calib_data_dict[self.bot_name]["left"]["ratio_without_offset"] = self.Left.RATIO_WITHOUT_OFFSET
+        auto_calib_data_dict[self.bot_name]["left"]["steering_angle_without_offset"] = self.Left.STEERING_ANGLE_WITHOUT_OFFSET
+        auto_calib_data_dict[self.bot_name]["left"]["ratio_offset"] = self.Left.RATIO_OFFSET
+        auto_calib_data_dict[self.bot_name]["left"]["steering_angle_offset"] = self.Left.STEERING_OFFSET
+        auto_calib_data_dict[self.bot_name]["left"]["ratio_with_offset"] = self.Left.RATIO_WITH_OFFSET
+        auto_calib_data_dict[self.bot_name]["left"]["steering_angle_with_offset"] = self.Left.STEERING_ANGLE_WITH_OFFSET
+        
+        ### open a json file save data ###
+        with open(os.path.join(self.data_dir,self.auto_calib_data_json),"w") as res_json:
+            json.dump(auto_calib_data_dict,res_json,indent=4)
+        
+        
+    
     def run_calibration(self):
         """
         Main function where all the functions related to auto calibration are called in sequence.
@@ -938,6 +994,10 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         ##### Print status of calibration after atuo calibration with offsets ###
         self.print_result_after_applying_offsets()
         #########################################################################
+        
+        ##### save the ratio,csa with and without offset as json ####
+        self.save_autocalibrate_result_as_json()
+        #############################################################
         
         ##########################################################################################
         
