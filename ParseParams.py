@@ -27,8 +27,8 @@ class ParseParams:
         parser.add_argument("--videoplayback_build",type=str,default = None,help = "path to VideoPlayback build. (default : None)")
         
         #### threshold params for ratio and csa ####
-        parser.add_argument("--ratio_without_side_cam_offset_min",type = float,default = 0.4,help = "min ratio to accept without side camera offset. (default : 0.47)")
-        parser.add_argument("--ratio_without_side_cam_offset_max",type = float,default = 0.6,help = "max ratio to accept without side camera offset. (default : 0.53)")
+        parser.add_argument("--ratio_without_side_cam_offset_min",type = float,default = 0.4,help = "min ratio to accept without side camera offset. (default : 0.4)")
+        parser.add_argument("--ratio_without_side_cam_offset_max",type = float,default = 0.6,help = "max ratio to accept without side camera offset. (default : 0.6)")
         parser.add_argument("--csa_without_offset_min",type = float,default = 87,help = "min current steering angle to accept without sterring angle offset. (default : 87)")
         parser.add_argument("--csa_without_offset_max",type = float,default = 93,help = "max current steering angle to accept without sterring angle offset. (default : 93)")
         
