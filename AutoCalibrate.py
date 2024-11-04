@@ -747,7 +747,7 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         
         ##### Front Cam ####
         # Ratio with offset #
-        if self.Front.RATIO_WITH_OFFSET >= self.args.ratio_with_side_cam_offset_min and self.Front.RATIO_WITH_OFFSET <= self.args.ratio_with_side_cam_offset_max:
+        if self.Front.RATIO_WITH_OFFSET >= self.args.front_ratio_with_side_cam_offset_min and self.Front.RATIO_WITH_OFFSET <= self.args.front_ratio_with_side_cam_offset_max:
             FRONT_RATIO_WITH_OFFSET_STATUS = self.color_text("PASS","green")
         else:
             AUTO_CALIB_STATUS_WITH_OFFSETS += 1

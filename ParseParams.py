@@ -32,6 +32,10 @@ class ParseParams:
         parser.add_argument("--csa_without_offset_min",type = float,default = 87,help = "min current steering angle to accept without sterring angle offset. (default : 87)")
         parser.add_argument("--csa_without_offset_max",type = float,default = 93,help = "max current steering angle to accept without sterring angle offset. (default : 93)")
         
+        ### params for front camera ###
+        parser.add_argument("--front_ratio_with_side_cam_offset_min",type = float,default = 0.5,help = "min ratio to accept with side camera offset. (default : 0.5)")
+        parser.add_argument("--front_ratio_with_side_cam_offset_max",type = float,default = 0.53,help = "max ratio to accept with side camera offset. (default : 0.53)")
+        
         parser.add_argument("--ratio_with_side_cam_offset_min",type = float,default = 0.495,help = "min ratio to accept with side camera offset. (default : 0.495)")
         parser.add_argument("--ratio_with_side_cam_offset_max",type = float,default = 0.505,help = "max ratio to accept with side camera offset. (default : 0.505)")
         parser.add_argument("--csa_with_offset_min",type = float,default = 89.5,help = "min current steering angle to accept with sterring angle offset. (default : 89.5)")
