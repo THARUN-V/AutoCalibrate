@@ -15,6 +15,7 @@ import threading
 import time
 from prettytable import PrettyTable
 import socket
+import re
 
 
 class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult):
@@ -257,25 +258,11 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
             self.logger.error("!!! No Cameras Found !!!")
             sys.exit()
         
-        # check if the scanned and provided number of cameras match
-        if len(self.see_cams) != self.args.n_cam:
-            self.logger.error(f"Found {len(self.see_cams)} cameras out of {self.args.n_cam}")
-            sys.exit()
-        
-        if self.args.skip_camera_id_mapping:
-            with open(self.args.json_path,"r") as f:
-                cam_id_json = json.load(f)
-            self.cam_name_and_index = {
-            "FrontCam":cam_id_json["CamParams"][0]["frontCameraId"],
-            "RightCam":cam_id_json["CamParams"][0]["rightCameraId"],
-            "LeftCam":cam_id_json["CamParams"][0]["leftCameraId"]
-            }
-        else:
-            self.cam_name_and_index = {
-                "FrontCam":None,
-                "RightCam":None,
-                "LeftCam":None
-            }
+        self.cam_name_and_index = {
+            "FrontCam":None,
+            "RightCam":None,
+            "LeftCam":None
+        }
         
         
         
@@ -346,6 +333,13 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
                 cap.release()
                 
                 
+        #### updated the number of cams connected in json ###
+        for key,val in self.cam_name_and_index.items():
+            if "Front" in key: 
+                self.update_param_in_camera_startup_json("CamParams",connectedCameraFlag = [1,1,1])
+            else: 
+                self.update_param_in_camera_startup_json("CamParams",connectedCameraFlag = [0,1,1])
+                
         self.logger.info(f"Mapped Camera Id's FrontCameraId : {self.current_json['CamParams'][0]['frontCameraId']} | RightCameraId : {self.current_json['CamParams'][0]['rightCameraId']} | LeftCameraId : {self.current_json['CamParams'][0]['leftCameraId']}")
         self.logger.info(f"Mapped Camera Idx FrontCameraIdx : {self.cam_name_and_index['FrontCam']} | RightCameraIdx : {self.cam_name_and_index['RightCam']} | LeftCameraIdx : {self.cam_name_and_index['LeftCam']}")
         
@@ -369,8 +363,13 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         utility function to record video of front, right and left for generating log file to estimate offsets.
         """
         
+        ###### provision for two camera bot ######
+        if None in list(self.cam_name_and_index.values()):
+            self.cam_name_and_index = {cam_name : cam_idx for cam_name,cam_idx in self.cam_name_and_index.items() if cam_idx is not None}
+        ##########################################
+        
         # initialize cam writer object
-        out = CameraWriter(self.data_dir,self.w,self.h)
+        out = CameraWriter(self.data_dir,self.w,self.h,self.cam_name_and_index)
         for cam_name , cam_index in self.cam_name_and_index.items():
             cap = cv2.VideoCapture(cam_index)
             cap.set(cv2.CAP_PROP_FRAME_WIDTH,self.w)
@@ -401,7 +400,14 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
             # shutil.copy(src_dir,dest_dir)
             if os.path.exists(dest_dir):
                 os.system(f"sudo rm -rf {dest_dir}")
-            os.system(f"sudo cp -r {src_dir} {dest_dir}")
+            if "FrontCam" in self.cam_name_and_index.keys():
+                os.system(f"sudo cp -r {src_dir} {dest_dir}")
+            else:
+                if not os.path.exists(dest_dir):
+                    os.mkdir(dest_dir)
+                for video_file in os.listdir(src_dir):
+                    if "FrontCam" not in video_file:
+                        os.system(f"sudo cp {os.path.join(src_dir,video_file)} {dest_dir}")
         #######################
         
     def overwrite_existing_offset(self):
@@ -532,7 +538,11 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         function to estimate offset from log file and update in json
         """
         # iterate for three cameras and estimate ratio and steering offset using generated log file
-        for cam in ["front","right","left"]:
+        
+        connected_cams = ["front","right","left"] if "FrontCam" in self.cam_name_and_index.keys() else ["right","left"]
+        
+        for cam in connected_cams:
+            
             log_file = os.path.join(self.data_dir,self.log_file_name[mode][cam])
                 
             # get the mean ratio and mean csa from log file
@@ -583,12 +593,13 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         
         
         ##### Ratio #####
-        if self.Front.RATIO_WITHOUT_OFFSET >= self.args.ratio_without_side_cam_offset_min and self.Front.RATIO_WITHOUT_OFFSET <= self.args.ratio_without_side_cam_offset_max:
-            # status of front cam in vertical position
-            FRONT_CAM_VERTICAL_POS_STATUS = self.color_text("PASS","green")
-        else:
-            FRONT_CAM_VERTICAL_POS_STATUS = self.color_text("FAIL","red")
-            MOUNTING_STATUS_COUNT += 1
+        if "FrontCam" in self.cam_name_and_index.keys():
+            if self.Front.RATIO_WITHOUT_OFFSET >= self.args.ratio_without_side_cam_offset_min and self.Front.RATIO_WITHOUT_OFFSET <= self.args.ratio_without_side_cam_offset_max:
+                # status of front cam in vertical position
+                FRONT_CAM_VERTICAL_POS_STATUS = self.color_text("PASS","green")
+            else:
+                FRONT_CAM_VERTICAL_POS_STATUS = self.color_text("FAIL","red")
+                MOUNTING_STATUS_COUNT += 1
         
         if self.Right.RATIO_WITHOUT_OFFSET >= self.args.ratio_without_side_cam_offset_min and self.Right.RATIO_WITHOUT_OFFSET <= self.args.ratio_without_side_cam_offset_max:
             RIGHT_CAM_VERTICAL_POS_STATUS = self.color_text("PASS","green")
@@ -604,11 +615,12 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         #################
         
         ##### Steering Angle #####
-        if self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET >= self.args.csa_without_offset_min and self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET <= self.args.csa_without_offset_max:
-            FRONT_CAM_ROTATED_POS_STATUS = self.color_text("PASS","green")
-        else:
-            FRONT_CAM_ROTATED_POS_STATUS = self.color_text("FAIL","red")
-            MOUNTING_STATUS_COUNT += 1
+        if "FrontCam" in self.cam_name_and_index.keys():
+            if self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET >= self.args.csa_without_offset_min and self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET <= self.args.csa_without_offset_max:
+                FRONT_CAM_ROTATED_POS_STATUS = self.color_text("PASS","green")
+            else:
+                FRONT_CAM_ROTATED_POS_STATUS = self.color_text("FAIL","red")
+                MOUNTING_STATUS_COUNT += 1
         
         if self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET >= self.args.csa_without_offset_min and self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET <= self.args.csa_without_offset_max:
             RIGHT_CAM_ROTATED_POS_STATUS = self.color_text("PASS","green")
@@ -747,11 +759,12 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         
         ##### Front Cam ####
         # Ratio with offset #
-        if self.Front.RATIO_WITH_OFFSET >= self.args.front_ratio_with_side_cam_offset_min and self.Front.RATIO_WITH_OFFSET <= self.args.front_ratio_with_side_cam_offset_max:
-            FRONT_RATIO_WITH_OFFSET_STATUS = self.color_text("PASS","green")
-        else:
-            AUTO_CALIB_STATUS_WITH_OFFSETS += 1
-            FRONT_RATIO_WITH_OFFSET_STATUS = self.color_text("FAIL","red")
+        if "FrontCam" in self.cam_name_and_index.keys():
+            if self.Front.RATIO_WITH_OFFSET >= self.args.front_ratio_with_side_cam_offset_min and self.Front.RATIO_WITH_OFFSET <= self.args.front_ratio_with_side_cam_offset_max:
+                FRONT_RATIO_WITH_OFFSET_STATUS = self.color_text("PASS","green")
+            else:
+                AUTO_CALIB_STATUS_WITH_OFFSETS += 1
+                FRONT_RATIO_WITH_OFFSET_STATUS = self.color_text("FAIL","red")
         if self.Right.RATIO_WITH_OFFSET >= self.args.ratio_with_side_cam_offset_min and self.Right.RATIO_WITH_OFFSET <= self.args.ratio_with_side_cam_offset_max:
             RIGHT_RATIO_WITH_OFFSET_STATUS = self.color_text("PASS","green")
         else:
@@ -764,11 +777,12 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
             LEFT_RATIO_WITH_OFFSET_STATUS = self.color_text("FAIL","red")
             
         # CSA With offset #
-        if self.Front.STEERING_ANGLE_WITH_OFFSET >= self.args.csa_with_offset_min and self.Front.STEERING_ANGLE_WITH_OFFSET <= self.args.csa_with_offset_max:
-            FRONT_CSA_WITH_OFFSET_STATUS = self.color_text("PASS","green")
-        else:
-            AUTO_CALIB_STATUS_WITH_OFFSETS += 1
-            FRONT_CSA_WITH_OFFSET_STATUS = self.color_text("FAIL","red")
+        if "FrontCam" in self.cam_name_and_index.keys():
+            if self.Front.STEERING_ANGLE_WITH_OFFSET >= self.args.csa_with_offset_min and self.Front.STEERING_ANGLE_WITH_OFFSET <= self.args.csa_with_offset_max:
+                FRONT_CSA_WITH_OFFSET_STATUS = self.color_text("PASS","green")
+            else:
+                AUTO_CALIB_STATUS_WITH_OFFSETS += 1
+                FRONT_CSA_WITH_OFFSET_STATUS = self.color_text("FAIL","red")
         if self.Right.STEERING_ANGLE_WITH_OFFSET >= self.args.csa_with_offset_min and self.Right.STEERING_ANGLE_WITH_OFFSET <= self.args.csa_with_offset_max:
             RIGHT_CSA_WITH_OFFSET_STATUS = self.color_text("PASS","green")
         else:
@@ -782,25 +796,26 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         ####################
         ## instruction for individual cameras ##
         # front #
-        if FRONT_RATIO_WITH_OFFSET_STATUS == self.color_text("FAIL","red") and FRONT_CSA_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
-            if self.Front.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min and self.Front.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
-                FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min} & Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
-            elif self.Front.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min and self.Front.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
-                FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min} & Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"
-            elif self.Front.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max and self.Front.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
-                FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max} & Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
-            elif self.Front.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max and self.Front.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
-                FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max} & Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"                
-        elif FRONT_RATIO_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
-            if self.Front.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min:
-                FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min}"
-            elif self.Front.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max:
-                FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max}"
-        elif FRONT_CSA_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
-            if self.Front.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
-                FRONT_CAM_INSTRUCTION = f"Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
-            elif self.Front.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
-                FRONT_CAM_INSTRUCTION = f"Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"
+        if "FrontCam" in self.cam_name_and_index.keys():
+            if FRONT_RATIO_WITH_OFFSET_STATUS == self.color_text("FAIL","red") and FRONT_CSA_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
+                if self.Front.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min and self.Front.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
+                    FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min} & Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
+                elif self.Front.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min and self.Front.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
+                    FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min} & Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"
+                elif self.Front.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max and self.Front.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
+                    FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max} & Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
+                elif self.Front.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max and self.Front.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
+                    FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max} & Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"                
+            elif FRONT_RATIO_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
+                if self.Front.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min:
+                    FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('>=','blue')} {self.args.ratio_with_side_cam_offset_min}"
+                elif self.Front.RATIO_WITH_OFFSET > self.args.ratio_with_side_cam_offset_max:
+                    FRONT_CAM_INSTRUCTION = f"Ratio with offset should be {self.color_text('<=','blue')} {self.args.ratio_with_side_cam_offset_max}"
+            elif FRONT_CSA_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
+                if self.Front.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
+                    FRONT_CAM_INSTRUCTION = f"Csa with offset should be {self.color_text('>=','blue')} {self.args.csa_with_offset_min}"
+                elif self.Front.STEERING_ANGLE_WITH_OFFSET > self.args.csa_with_offset_max:
+                    FRONT_CAM_INSTRUCTION = f"Csa with offset should be {self.color_text('<=','blue')} {self.args.csa_with_offset_max}"
         # right #
         if RIGHT_RATIO_WITH_OFFSET_STATUS == self.color_text("FAIL","red") and RIGHT_CSA_WITH_OFFSET_STATUS == self.color_text("FAIL","red"):
             if self.Right.RATIO_WITH_OFFSET < self.args.ratio_with_side_cam_offset_min and self.Right.STEERING_ANGLE_WITH_OFFSET < self.args.csa_with_offset_min:
@@ -878,17 +893,19 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         auto_calib_data_dict = dict()
         
         auto_calib_data_dict[self.bot_name] = dict()
-        auto_calib_data_dict[self.bot_name]["front"] = dict()
+        if "FrontCam" in self.cam_name_and_index:
+            auto_calib_data_dict[self.bot_name]["front"] = dict()
         auto_calib_data_dict[self.bot_name]["right"] = dict()
         auto_calib_data_dict[self.bot_name]["left"] = dict()
         
-        auto_calib_data_dict[self.bot_name]["front"]["camera_id"] = self.cam_name_and_index["FrontCam"]
-        auto_calib_data_dict[self.bot_name]["front"]["ratio_without_offset"] = self.Front.RATIO_WITHOUT_OFFSET
-        auto_calib_data_dict[self.bot_name]["front"]["steering_angle_without_offset"] = self.Front.STEERING_ANGLE_WITHOUT_OFFSET
-        auto_calib_data_dict[self.bot_name]["front"]["ratio_offset"] = self.Front.RATIO_OFFSET
-        auto_calib_data_dict[self.bot_name]["front"]["steering_angle_offset"] = self.Front.STEERING_OFFSET
-        auto_calib_data_dict[self.bot_name]["front"]["ratio_with_offset"] = self.Front.RATIO_WITH_OFFSET
-        auto_calib_data_dict[self.bot_name]["front"]["steering_angle_with_offset"] = self.Front.STEERING_ANGLE_WITH_OFFSET
+        if "FrontCam" in self.cam_name_and_index:
+            auto_calib_data_dict[self.bot_name]["front"]["camera_id"] = self.cam_name_and_index["FrontCam"]
+            auto_calib_data_dict[self.bot_name]["front"]["ratio_without_offset"] = self.Front.RATIO_WITHOUT_OFFSET
+            auto_calib_data_dict[self.bot_name]["front"]["steering_angle_without_offset"] = self.Front.STEERING_ANGLE_WITHOUT_OFFSET
+            auto_calib_data_dict[self.bot_name]["front"]["ratio_offset"] = self.Front.RATIO_OFFSET
+            auto_calib_data_dict[self.bot_name]["front"]["steering_angle_offset"] = self.Front.STEERING_OFFSET
+            auto_calib_data_dict[self.bot_name]["front"]["ratio_with_offset"] = self.Front.RATIO_WITH_OFFSET
+            auto_calib_data_dict[self.bot_name]["front"]["steering_angle_with_offset"] = self.Front.STEERING_ANGLE_WITH_OFFSET
         
         auto_calib_data_dict[self.bot_name]["right"]["camera_id"] = self.cam_name_and_index["RightCam"]
         auto_calib_data_dict[self.bot_name]["right"]["ratio_without_offset"] = self.Right.RATIO_WITHOUT_OFFSET
@@ -911,7 +928,6 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
             json.dump(auto_calib_data_dict,res_json,indent=4)
         
         
-    
     def run_calibration(self):
         """
         Main function where all the functions related to auto calibration are called in sequence.
@@ -938,11 +954,7 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         ####################################################################################
         
         ############# Perform Camera Id Mapping ###############
-        if self.args.skip_camera_id_mapping:
-            # display to user about skipping camera device id mapping
-            self.logger.info("################# Skipping Camera Device Id Mapping #################")
-        if not self.args.skip_camera_id_mapping:
-            self.detect_and_map_cam_ids()
+        self.detect_and_map_cam_ids()
         #######################################################
         
         ############ Record Video ####################
