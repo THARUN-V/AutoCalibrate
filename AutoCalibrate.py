@@ -331,17 +331,24 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
                             
             if id_detected:
                 cap.release()
-                
-                
-        #### updated the number of cams connected in json ###
-        for key,val in self.cam_name_and_index.items():
-            if "Front" in key: 
-                self.update_param_in_camera_startup_json("CamParams",connectedCameraFlag = [1,1,1])
-            else: 
-                self.update_param_in_camera_startup_json("CamParams",connectedCameraFlag = [0,1,1])
-                
-        self.logger.info(f"Mapped Camera Id's FrontCameraId : {self.current_json['CamParams'][0]['frontCameraId']} | RightCameraId : {self.current_json['CamParams'][0]['rightCameraId']} | LeftCameraId : {self.current_json['CamParams'][0]['leftCameraId']}")
-        self.logger.info(f"Mapped Camera Idx FrontCameraIdx : {self.cam_name_and_index['FrontCam']} | RightCameraIdx : {self.cam_name_and_index['RightCam']} | LeftCameraIdx : {self.cam_name_and_index['LeftCam']}")
+                                
+        if self.cam_name_and_index["FrontCam"] is not None:
+            self.update_param_in_camera_startup_json("CamParams",connectedCameraFlag = [1,1,1])
+            self.logger.info(f"Mapped Camera Id's FrontCameraId : {self.current_json['CamParams'][0]['frontCameraId']} | RightCameraId : {self.current_json['CamParams'][0]['rightCameraId']} | LeftCameraId : {self.current_json['CamParams'][0]['leftCameraId']}")
+            self.logger.info(f"Mapped Camera Idx FrontCameraIdx : {self.cam_name_and_index['FrontCam']} | RightCameraIdx : {self.cam_name_and_index['RightCam']} | LeftCameraIdx : {self.cam_name_and_index['LeftCam']}")
+        else:
+            self.update_param_in_camera_startup_json("CamParams",connectedCameraFlag = [0,1,1])
+            self.update_param_in_camera_startup_json("CamParams",frontCameraId = None)
+            self.logger.info(f"Mapped Camera Id's RightCameraId : {self.current_json['CamParams'][0]['rightCameraId']} | LeftCameraId : {self.current_json['CamParams'][0]['leftCameraId']}")
+            self.logger.info(f"Mapped Camera Idx RightCameraIdx : {self.cam_name_and_index['RightCam']} | LeftCameraIdx : {self.cam_name_and_index['LeftCam']}")
+            
+        # print(json.dumps(self.cam_name_and_index,indent=4))
+        # #### updated the number of cams connected in json ###
+        # for key,val in self.cam_name_and_index.items():
+        #     if val is None: 
+        #         self.update_param_in_camera_startup_json("CamParams",connectedCameraFlag = [0,1,1])
+        #     else: 
+        #         self.update_param_in_camera_startup_json("CamParams",connectedCameraFlag = [1,1,1])
         
         self.logger.info("=========    Done Camera Id Mapping    =========")
         
@@ -459,9 +466,9 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         # get absolute path to video file
         video_file = os.path.join(self.data_dir,video_file)
         
-        # check if the video file exists #
-        if len(os.listdir(self.data_dir)) < self.args.n_cam:
-            self.logger.error(f"Only {len(os.listdir(self.data_dir))} exists out of {self.args.n_cam}")
+        # # check if the video file exists #
+        # if len(os.listdir(self.data_dir)) < self.args.n_cam:
+        #     self.logger.error(f"Only {len(os.listdir(self.data_dir))} exists out of {self.args.n_cam}")
             
         ########### execute videoplayback build ########################
         # Start the progress indicator thread
