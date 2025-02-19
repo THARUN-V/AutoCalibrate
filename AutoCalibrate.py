@@ -16,6 +16,7 @@ import time
 from prettytable import PrettyTable
 import socket
 import re
+import time
 
 
 class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult):
@@ -150,26 +151,28 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
             
             with open(self.args.json_path,"r") as camera_startup_json:
                 self.current_json = json.load(camera_startup_json)
+            
+            # if skip camera id mapping, dont take backup of current camera startup json
+            if not self.args.skip_camera_id_mapping:
+                # if CameraStartUpJson is already present ask the user, if it has to backed up
+                self.logger.info("**** This Script overwrites the current json file for updating params , Take backup of current json file before proceeding if needed ****")
                 
-            # if CameraStartUpJson is already present ask the user, if it has to backed up
-            self.logger.info("**** This Script overwrites the current json file for updating params , Take backup of current json file before proceeding if needed ****")
-            
-            bkp_choice = input(f"{self.get_formatted_timestamp()} Enter y to take backup , n to skip : ")
-            
-            # while taking input, check for proper input 
-            while bkp_choice not in ["y","n"]:
-                self.logger.info("######## Please provide y or n , to take backup of current CameraStartUpJson ########")
                 bkp_choice = input(f"{self.get_formatted_timestamp()} Enter y to take backup , n to skip : ")
-            
-            # if yes take backup of current CameraStartUpJson by copying it with different name
-            # the backed up CameraStartUpJson will be saved as CameraStartUpJson_bkp_<current_date_and_time>
-            if bkp_choice == "y":
-                with open(self.bkp_camera_startup_json_name,"w") as bkp_camera_startup_json:
-                    json.dump(self.current_json,bkp_camera_startup_json,indent=4)
-                # log the msg regarding successful backup of current CameraStartUpJson
-                self.logger.info(f"Successfully backed up current CameraStartUpjson at {self.bkp_camera_startup_json_name}")
-            if bkp_choice == "n":
-                pass
+                
+                # while taking input, check for proper input 
+                while bkp_choice not in ["y","n"]:
+                    self.logger.info("######## Please provide y or n , to take backup of current CameraStartUpJson ########")
+                    bkp_choice = input(f"{self.get_formatted_timestamp()} Enter y to take backup , n to skip : ")
+                
+                # if yes take backup of current CameraStartUpJson by copying it with different name
+                # the backed up CameraStartUpJson will be saved as CameraStartUpJson_bkp_<current_date_and_time>
+                if bkp_choice == "y":
+                    with open(self.bkp_camera_startup_json_name,"w") as bkp_camera_startup_json:
+                        json.dump(self.current_json,bkp_camera_startup_json,indent=4)
+                    # log the msg regarding successful backup of current CameraStartUpJson
+                    self.logger.info(f"Successfully backed up current CameraStartUpjson at {self.bkp_camera_startup_json_name}")
+                if bkp_choice == "n":
+                    pass
                 
                 
         except FileNotFoundError:
@@ -298,12 +301,21 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
             
             # flag to check if id is detected for current cam
             id_detected = False
+
+            # flag to check if marker is not detected
+            marker_not_present_frames = 0
             
             while not id_detected:
                 
                 ret , frame = cap.read()
                 
                 if ret:
+
+                    # check if marker is not detected
+                    if marker_not_present_frames >= 60:
+                        self.logger.info(f"!!! No markers Detected in {cam.camera_index} !!!")
+                        
+
                     # detect the marker in current camera
                     _ , ids , _ , _ = self.get_marker_id(frame)
                     if ids != None:
@@ -328,6 +340,8 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
                                 self.update_param_in_camera_startup_json(ParamType="CamParams",leftCameraId=cam.serial_number)
                                 self.cam_name_and_index["LeftCam"] = cam.camera_index
                                 id_detected = True
+                    
+                    marker_not_present_frames += 1
                             
             if id_detected:
                 cap.release()
@@ -961,7 +975,12 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         ####################################################################################
         
         ############# Perform Camera Id Mapping ###############
-        self.detect_and_map_cam_ids()
+
+
+        if self.args.skip_camera_id_mapping:
+            self.logger.info("################### Skipping Camera Id Mapping ######################")
+        else:
+            self.detect_and_map_cam_ids()
         #######################################################
         
         ############ Record Video ####################
