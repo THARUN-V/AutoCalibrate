@@ -982,7 +982,7 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         else:
             self.detect_and_map_cam_ids()
         #######################################################
-        
+
         ############ Record Video ####################
         self.record_video()
         ##############################################
