@@ -948,6 +948,15 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         with open(os.path.join(self.data_dir,self.auto_calib_data_json),"w") as res_json:
             json.dump(auto_calib_data_dict,res_json,indent=4)
         
+
+    def update_camera_ids_from_json(self):
+        """
+        if camera id mapping is skipped, the camera ids are updated from existing json file.
+        """
+
+        self.cam_name_and_index["FrontCam"] = self.current_json["CamParams"][0]["frontCameraId"]
+        self.cam_name_and_index["RightCam"] = self.current_json["CamParams"][0]["rightCameraId"]
+        self.cam_name_and_index["LeftCam"] = self.current_json["CamParams"][0]["leftCameraId"]
         
     def run_calibration(self):
         """
@@ -979,6 +988,7 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
 
         if self.args.skip_camera_id_mapping:
             self.logger.info("################### Skipping Camera Id Mapping ######################")
+            self.update_camera_ids_from_json()
         else:
             self.detect_and_map_cam_ids()
         #######################################################
