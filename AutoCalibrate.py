@@ -953,11 +953,12 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         """
         if camera id mapping is skipped, the camera ids are updated from existing json file.
         """
+        cam_serial_num_and_device_id = {cam.serial_number : cam.camera_index for cam in self.see_cams}
 
-        self.cam_name_and_index["FrontCam"] = self.current_json["CamParams"][0]["frontCameraId"]
-        self.cam_name_and_index["RightCam"] = self.current_json["CamParams"][0]["rightCameraId"]
-        self.cam_name_and_index["LeftCam"] = self.current_json["CamParams"][0]["leftCameraId"]
-        
+        self.cam_name_and_index["FrontCam"] = cam_serial_num_and_device_id[self.current_json["CamParams"][0]["frontCameraId"]]
+        self.cam_name_and_index["RightCam"] = cam_serial_num_and_device_id[self.current_json["CamParams"][0]["rightCameraId"]]
+        self.cam_name_and_index["LeftCam"] = cam_serial_num_and_device_id[self.current_json["CamParams"][0]["leftCameraId"]]
+
     def run_calibration(self):
         """
         Main function where all the functions related to auto calibration are called in sequence.
