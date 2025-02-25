@@ -50,6 +50,9 @@ class ParseParams:
         
         ### param to skip camera device id mapping and perform only ratio estimation ###
         parser.add_argument("--skip_camera_id_mapping",action="store_true",help = "Param to skip camera device id mapping and estimate only offsets")
+
+        ### param to skip front camera
+        parser.add_argument("--skip_front_cam",action="store_true",help="Param to skip front camera")
         
         #### video file names ####
         parser.add_argument("--right_cam_video_name",type=str,default="RightCam.mp4",help = "Video file name for right cam")

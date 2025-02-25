@@ -389,6 +389,12 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
             self.cam_name_and_index = {cam_name : cam_idx for cam_name,cam_idx in self.cam_name_and_index.items() if cam_idx is not None}
         ##########################################
         
+        ###### skip front cam using --skip_front_cam command line args #####
+        if self.args.skip_front_cam:
+            self.logger.info("########## Skipping Front Camera ##########")
+            if "FrontCam" in self.cam_name_and_index.keys():
+                self.cam_name_and_index.pop("FrontCam")
+            
         # initialize cam writer object
         out = CameraWriter(self.data_dir,self.w,self.h,self.cam_name_and_index)
         for cam_name , cam_index in self.cam_name_and_index.items():
@@ -664,7 +670,8 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
             
             cam_mounting_witout_offset_table = PrettyTable()
             cam_mounting_witout_offset_table.field_names = ["CamName","CamId","RatioWithoutOffset","CsaWithoutOffset","VerticalPos","RotatedPos"]
-            cam_mounting_witout_offset_table.add_row(["FrontCam",self.current_json["CamParams"][0]["frontCameraId"],self.Front.RATIO_WITHOUT_OFFSET,self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET,FRONT_CAM_VERTICAL_POS_STATUS,FRONT_CAM_ROTATED_POS_STATUS])
+            if "FrontCam" in self.cam_name_and_index.keys():
+                cam_mounting_witout_offset_table.add_row(["FrontCam",self.current_json["CamParams"][0]["frontCameraId"],self.Front.RATIO_WITHOUT_OFFSET,self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET,FRONT_CAM_VERTICAL_POS_STATUS,FRONT_CAM_ROTATED_POS_STATUS])
             cam_mounting_witout_offset_table.add_row(["RightCam",self.current_json["CamParams"][0]["rightCameraId"],self.Right.RATIO_WITHOUT_OFFSET,self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET,RIGHT_CAM_VERTICAL_POS_STATUS,RIGHT_CAM_ROTATED_POS_STATUS])
             cam_mounting_witout_offset_table.add_row(["LeftCam",self.current_json["CamParams"][0]["leftCameraId"],self.Left.RATIO_WITHOUT_OFFSET,self.LEFT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET,LEFT_CAM_VERTICAL_POS_STATUS,LEFT_CAM_ROTATED_POS_STATUS])
             print(cam_mounting_witout_offset_table)
@@ -688,25 +695,26 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         ### get the adustment to be done in mounting of camera based on ratio and steering angle without offset ###
         ###### Front Camera ####
         ###### Camera Movement in both upward or downward and clockwise or anticlockwise ######
-        if self.Front.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min and self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
-            FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} & Rotate {self.color_text('Clockwise','blue')}"
-        elif self.Front.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min and self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
-            FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} & Rotate {self.color_text('Anti-Clockwise','blue')}"
-        elif self.Front.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max and self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
-            FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} & Rotate {self.color_text('Clockwise','blue')}"
-        elif self.Front.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max and self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
-            FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} & Rotate {self.color_text('Anti-Clockwise','blue')}"
-        ###### Camera Movement in upwards or downwards based on ratio without offset ######
-        if self.Front.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min:
-            FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} From Current Position"
-        elif self.Front.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max:
-            FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} From Current Position"
-        ##### Camera Rotation in clockwise of anticlockwise based on steering angle without offset #####
-        if self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
-            FRONT_CAM_INSTRUCTION = f"Rotate {self.color_text('Clockwise','blue')} From Current Position"
-        elif self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
-            FRONT_CAM_INSTRUCTION = f"Rotate {self.color_text('Anti-Clockwise','blue')} From Current Position"
-            
+        if "FrontCam" in self.cam_name_and_index.keys():
+            if self.Front.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min and self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
+                FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} & Rotate {self.color_text('Clockwise','blue')}"
+            elif self.Front.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min and self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
+                FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} & Rotate {self.color_text('Anti-Clockwise','blue')}"
+            elif self.Front.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max and self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
+                FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} & Rotate {self.color_text('Clockwise','blue')}"
+            elif self.Front.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max and self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
+                FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} & Rotate {self.color_text('Anti-Clockwise','blue')}"
+            ###### Camera Movement in upwards or downwards based on ratio without offset ######
+            if self.Front.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min:
+                FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} From Current Position"
+            elif self.Front.RATIO_WITHOUT_OFFSET > self.args.ratio_without_side_cam_offset_max:
+                FRONT_CAM_INSTRUCTION = f"Move {self.color_text('Upwards','blue')} From Current Position"
+            ##### Camera Rotation in clockwise of anticlockwise based on steering angle without offset #####
+            if self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
+                FRONT_CAM_INSTRUCTION = f"Rotate {self.color_text('Clockwise','blue')} From Current Position"
+            elif self.FRONT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET > self.args.csa_without_offset_max:
+                FRONT_CAM_INSTRUCTION = f"Rotate {self.color_text('Anti-Clockwise','blue')} From Current Position"
+        
         ##### Right Camera ####
         if self.Right.RATIO_WITHOUT_OFFSET < self.args.ratio_without_side_cam_offset_min and self.RIGHT_STEERING_ANGLE_WITHOUT_RATIO_OFFSET < self.args.csa_without_offset_min:
             RIGHT_CAM_INSTRUCTION = f"Move {self.color_text('Downwards','blue')} & Rotate {self.color_text('Clockwise','blue')}"
@@ -752,7 +760,8 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         # table to hold instructions for respective camera #
         instruction_table = PrettyTable()
         instruction_table.field_names = ["Camera","Instruction"]
-        instruction_table.add_row(["Front",FRONT_CAM_INSTRUCTION])
+        if "FrontCam" in self.cam_name_and_index.items():
+            instruction_table.add_row(["Front",FRONT_CAM_INSTRUCTION])
         instruction_table.add_row(["Right",RIGHT_CAM_INSTRUCTION])
         instruction_table.add_row(["Left",LEFT_CAM_INSTRUCTION])
         print(instruction_table)
@@ -893,7 +902,8 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
             
             auto_calib_with_offsets_table = PrettyTable()
             auto_calib_with_offsets_table.field_names = ["Camera","RatioWithOffset","CsaWithOffset","Instruction"]
-            auto_calib_with_offsets_table.add_row(["Front",self.Front.RATIO_WITH_OFFSET,self.Front.STEERING_ANGLE_WITH_OFFSET,FRONT_CAM_INSTRUCTION])
+            if "FrontCam" in self.cam_name_and_index.keys():
+                auto_calib_with_offsets_table.add_row(["Front",self.Front.RATIO_WITH_OFFSET,self.Front.STEERING_ANGLE_WITH_OFFSET,FRONT_CAM_INSTRUCTION])
             auto_calib_with_offsets_table.add_row(["Right",self.Right.RATIO_WITH_OFFSET,self.Right.STEERING_ANGLE_WITH_OFFSET,RIGHT_CAM_INSTRUCTION])
             auto_calib_with_offsets_table.add_row(["Left",self.Left.RATIO_WITH_OFFSET,self.Left.STEERING_ANGLE_WITH_OFFSET,LEFT_CAM_INSTRUCTION])
             print(auto_calib_with_offsets_table)
