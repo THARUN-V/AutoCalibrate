@@ -7,3 +7,9 @@
 2. skip camera id mapping
     ### if camera id's are already present in CameraStartUpJson.
     * sudo ./AutoCalibrate --videoplayback_build ./<videoplay_back_build_name> --skip_camera_id_mapping
+
+3. skip front camera
+    * sudo ./AutoCalibrate --videoplayback_build ./<videoplay_back_build_name> --skip_front_cam
+
+4. skip camera id mapping and front camera
+    * sudo ./AutoCalibrate --videoplayback_build ./<videoplay_back_build_name> --skip_camera_id_mapping --skip_front_cam
