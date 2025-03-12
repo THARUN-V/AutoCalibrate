@@ -537,14 +537,30 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
                  for line in open(log_file_path,"r").readlines() 
                  if ";" in line and "ratio" in line]
         
-        ratio_mean = numpy.mean(numpy.array(ratio))
+        # ratio_mean = numpy.mean(numpy.array(ratio))
+        ### since in front camera, we cant expect all the frames ratio to be 255 , so if present remove and take only non 255 ratio ###
+        ratio = numpy.array(ratio) # convert to numpy array
+        ratio = ratio[ratio != 255] # remove 255 from array 
+        ratio_mean = numpy.mean(ratio)
+
+        # exception handling (for front camera)
+        if ratio.shape[0] == 0:
+            ratio_mean = 0.5
         
         # iterate over log file get the mean current steering angle from string
         csa = [[float(string.split("=")[1]) for string in line.split(";") if "CSA" in string][0]
                  for line in open(log_file_path,"r").readlines() 
                  if ";" in line and "CSA" in line]
         
-        csa_mean = numpy.mean(numpy.array(csa))
+        # csa_mean = numpy.mean(numpy.array(csa))
+        ### since in front camera, we cant expect all the frames csa to be 255 , so if present remove and take only non 255 csa ###
+        csa = numpy.array(csa) # convert to numpy array
+        csa = csa[csa != 255] # remove 255 from array
+        csa_mean = numpy.mean(csa)
+
+        # exception handling (for front camera)
+        if csa_mean.shape[0] == 0:
+            csa_mean = 90
         
         return round(ratio_mean,3) , round(csa_mean,2)
     
