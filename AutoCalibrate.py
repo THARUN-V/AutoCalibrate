@@ -199,6 +199,7 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         bot_type_info_table.field_names = ["BotType","Info"]
         bot_type_info_table.add_row(["1","APPU/JUMBO Bot with Camera mounted on FRP"])
         bot_type_info_table.add_row(["2","JUMBO Bot with raised FRP and camera mounted on metal plate"])
+        bot_type_info_table.add_row(["3","APPU Bot with raised FRP"])
         print(bot_type_info_table)
         ###############################################################
         
@@ -206,7 +207,7 @@ class AutoCalibrateV2(ParseParams,CamContext,ArucoMarkerDetector,AutoCalibResult
         bot_type = int(input(f"{self.get_formatted_timestamp()} Enter BotType : "))
         
         ## failsafe to make user choose bot_type out of available list ##
-        while bot_type not in [1,2]:
+        while bot_type not in [1,2,3]:
             self.logger.info("#### please enter BotType from above Available BotType ####")
             bot_type = int(input(f"{self.get_formatted_timestamp()} Enter BotType : "))
         
